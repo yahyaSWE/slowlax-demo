@@ -21,6 +21,9 @@ import { SHOP_IMAGE_SCHEMA } from "./shop-image-schema";
 import { SHOP_EMAIL_SCHEMA } from "./shop-email-schema";
 import { SHOP_COMMERCE_SCHEMA } from "./shop-commerce-schema";
 import { SHOP_PRODUCT_CONTENT_SCHEMA } from "./shop-product-content-schema";
+import { MEMBERSHIP_SCHEMA } from "./membership-schema";
+import { MEMBERSHIP_UPLOAD_SCHEMA } from "./membership-upload-schema";
+import { MEMBERSHIP_BILLING_SCHEMA } from "./membership-billing-schema";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -176,6 +179,9 @@ export class DatabaseAdapter {
         }
         await tx.executeMultiple(SHOP_COMMERCE_SCHEMA);
         await tx.executeMultiple(SHOP_PRODUCT_CONTENT_SCHEMA);
+        await tx.executeMultiple(MEMBERSHIP_SCHEMA);
+        await tx.executeMultiple(MEMBERSHIP_UPLOAD_SCHEMA);
+        await tx.executeMultiple(MEMBERSHIP_BILLING_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );

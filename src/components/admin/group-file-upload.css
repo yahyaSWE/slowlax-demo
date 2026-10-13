@@ -1,0 +1,116 @@
+.admin-shell .group-file-upload {
+  border: 1px solid var(--line);
+  background: #f4f5ed;
+  border-radius: 16px;
+  padding: 20px;
+  min-width: 0;
+}
+.admin-shell .group-upload-input-label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 550;
+  margin-bottom: 12px;
+}
+.admin-shell .group-upload-file-input {
+  padding: 8px;
+  background: var(--cream);
+  min-height: 46px;
+  max-width: 100%;
+  font-size: 12px;
+}
+.admin-shell .group-upload-file-input::file-selector-button {
+  border: 0;
+  background: var(--green);
+  color: #fff;
+  border-radius: 20px;
+  padding: 9px 15px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+.admin-shell .group-upload-help {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.admin-shell .group-upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--green);
+}
+.admin-shell .group-upload-error {
+  margin: 12px 0 0;
+  color: #933b2d;
+  font-size: 12px;
+}
+.admin-shell .group-uploaded-file-list {
+  display: grid;
+  gap: 10px;
+}
+.admin-shell .group-uploaded-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+.admin-shell .group-uploaded-file > svg {
+  flex-shrink: 0;
+  color: var(--green);
+}
+.admin-shell .group-uploaded-file-copy {
+  min-width: 0;
+  flex: 1;
+}
+.admin-shell .group-uploaded-file-copy a {
+  font-size: 12px;
+  color: var(--green);
+  overflow-wrap: anywhere;
+}
+.admin-shell .group-uploaded-file-copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.admin-shell .group-uploaded-file-photo {
+  object-fit: cover;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.admin-shell .group-uploaded-file-remove {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--green);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.admin-shell .group-uploaded-file-remove:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+@media (max-width: 650px) {
+  .admin-shell .group-file-upload {
+    padding: 14px;
+  }
+  .admin-shell .group-uploaded-file-photo {
+    width: 52px;
+    height: 52px;
+  }
+}

@@ -1,0 +1,5 @@
+import Link from "next/link";
+import { requireUser } from "@/lib/auth";
+import { getPortalGroups,getMembershipSettings } from "@/lib/memberships";
+import { MembershipGroupCard } from "@/components/memberships/views";
+export default async function PortalGroupsPage(){const user=await requireUser(),[groups,settings]=await Promise.all([getPortalGroups(user.id),getMembershipSettings()]);return <><header className="membership-hero"><h1 className="page-title">Mina grupper</h1><p>Här hittar du material och kurser för de grupper du tillhör.</p></header>{user.role==="admin"&&<p className="notice">Administratörsvy · Du kan förhandsgranska alla grupper, inklusive utkast.</p>}{groups.length?<div className="membership-cards">{groups.map(group=><MembershipGroupCard key={group.id} group={group}/>)}</div>:<div className="empty-state"><h2>Du har inga aktiva grupper ännu</h2><p>Grupper visas här när du har tilldelats åtkomst eller har ett betalt medlemskap.</p>{settings.salesEnabled&&<Link href="/medlemskap" className="button button-primary">Utforska medlemskap</Link>}</div>}</>;}

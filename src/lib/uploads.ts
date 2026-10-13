@@ -400,7 +400,7 @@ export async function getReadableUpload(
   if (!UPLOAD_ID.test(id)) return null;
   const upload = await getUpload(id);
   if (!upload) return null;
-  if (user?.role === "admin") return upload;
+  if (user && (await getDb().prepare("SELECT role FROM users WHERE id=?").get(user.id))?.role === "admin") return upload;
   if (upload.kind === "practitioner-photo")
     return (await getDb()
       .prepare(

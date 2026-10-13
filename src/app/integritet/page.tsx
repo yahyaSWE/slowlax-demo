@@ -60,6 +60,19 @@ export default async function PrivacyPage() {
         Anonymisera personer i dina exempel och lämna inte andra personers
         personnummer eller hälsouppgifter i kursuppgifter.
       </p>
+      <h2>Grupper och abonnemang</h2>
+      <p>
+        Vi sparar dina grupptilldelningar och abonnemang, accepterade
+        abonnemangsvillkor, pris, betalningsintervall, betalningsstatus och betald
+        period. Uppgifterna används för att hantera medlemskapet och ge dig
+        tillgång till gruppens kurser och privata material.
+      </p>
+      <p>
+        Återkommande betalningar och kundportalen hanteras av Stripe.
+        Faktureringsadressen som du lämnar vid betalningen behandlas hos Stripe.
+        Kortuppgifter lagras inte i Tibb.nu:s databas. Gruppmaterial och bilagor
+        visas endast för behöriga gruppmedlemmar och administratörer.
+      </p>
       <h2>Självtestet och din webbläsare</h2>
       <p>
         Självtestets svar och resultat sparas lokalt i din webbläsare för att du
@@ -85,7 +98,7 @@ export default async function PrivacyPage() {
         Turso för databasen i den publicerade tjänsten. Resend används när
         e-posttjänsten är ansluten och Stripe när kortbetalning är aktiverad.
         Behöriga administratörer får åtkomst till de uppgifter som behövs för
-        bokningar, beställningar, elevkonton och kursadministration.
+        bokningar, beställningar, elevkonton, kursadministration och medlemskap.
       </p>
       {business.internationalTransfers && <TextContent text={business.internationalTransfers} />}
       {business.legalBasis && <><h2>Rättslig grund</h2><TextContent text={business.legalBasis} /></>}

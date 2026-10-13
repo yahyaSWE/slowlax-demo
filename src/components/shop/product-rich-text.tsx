@@ -4,6 +4,7 @@ import {
   type ProductRichTextDocument,
   type ProductRichTextMark,
   type ProductRichTextNode,
+  type RichTextImageNamespace,
 } from "@/lib/product-rich-text";
 import "./product-rich-text.css";
 
@@ -58,8 +59,8 @@ function renderNode(node: ProductRichTextNode, key: number): ReactNode {
 }
 
 /** Render the validated structure as escaped React elements, including captions. */
-export function ProductRichText({ document }: { document: ProductRichTextDocument | null }) {
-  const validated = parseProductRichText(document);
+export function ProductRichText({ document, imageNamespace = "shop" }: { document: ProductRichTextDocument | null; imageNamespace?: RichTextImageNamespace }) {
+  const validated = parseProductRichText(document, imageNamespace);
   if (!validated) return null;
   return <div className="product-rich-text">{validated.content.map(renderNode)}</div>;
 }

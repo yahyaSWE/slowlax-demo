@@ -63,6 +63,7 @@ export default async function StudentPortalPage({
           {courses.length} {courses.length === 1 ? "kurs" : "kurser"}
         </span>
       </div>
+      <p className="muted">Gruppmaterial och månadsplaner hittar du under <Link href="/elevportal/grupper" className="inline-link">Mina grupper</Link>.</p>
       {courses.length ? (
         <div className="card-grid">
           {courses.map((course, index) => (

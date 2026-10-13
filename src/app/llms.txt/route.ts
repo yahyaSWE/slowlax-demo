@@ -2,6 +2,7 @@ import { databaseConfigured } from "@/lib/database-config";
 import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
 import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
+import { getPublicPlans } from "@/lib/memberships";
 
 export const dynamic = "force-dynamic";
 
@@ -74,5 +75,7 @@ export async function GET(): Promise<Response> {
     lines.push("", "## Butik", "", `- [Butik](${absoluteUrl("/butik")})`);
     for (const product of await getPublicShopProducts()) if (/^[a-z0-9][a-z0-9-]*$/.test(product.slug)) lines.push(`- [${label(product.name)}](${absoluteUrl(`/butik/${product.slug}`)})`);
   }
+  const plans=await getPublicPlans();
+  if(plans.length){lines.push("","## Medlemskap","",`- [Medlemskap](${absoluteUrl("/medlemskap")})`);for(const plan of plans)if(/^[a-z0-9][a-z0-9-]*$/.test(plan.slug))lines.push(`- [${label(plan.name)}](${absoluteUrl(`/medlemskap/${plan.slug}`)})`);lines.push("","Gruppinlägg, dokument och elevuppgifter är privata och ingår inte i denna innehållskarta.");}
   return new Response(lines.join("\n"), { headers });
 }

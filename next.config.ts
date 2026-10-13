@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-      ...["/admin/:path*", "/elevportal/:path*", "/bokning/:path*", "/bestallning/:path*", "/butik/kassa", "/butik/varukorg", "/logga-in", "/registrera", "/verifiera-epost", "/glomt-losenord", "/aterstall-losenord", "/setup", "/installation", "/api/:path*"].map((source) => ({
+      ...["/admin/:path*", "/elevportal/:path*", "/bokning/:path*", "/bestallning/:path*", "/butik/kassa", "/butik/varukorg", "/medlemskap/bekraftelse", "/logga-in", "/registrera", "/verifiera-epost", "/glomt-losenord", "/aterstall-losenord", "/setup", "/installation", "/api/:path*"].map((source) => ({
         source,
         headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
       })),

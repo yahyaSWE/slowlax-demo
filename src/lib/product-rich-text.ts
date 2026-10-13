@@ -83,8 +83,11 @@ const MAX_TEXT_LENGTH = 50_000;
 const MAX_NODES = 2_000;
 const MAX_DEPTH = 12;
 const MAX_IMAGES = 20;
-const imagePath =
+export type RichTextImageNamespace = "shop" | "group";
+const shopImagePath =
   /^\/api\/shop\/images\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const groupImagePath =
+  /^\/api\/gruppfiler\/([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const blockTypes = new Set([
   "paragraph",
   "heading",
@@ -213,7 +216,8 @@ function parseMarks(input: unknown, addText: (value: unknown) => string): Produc
 }
 
 /** Validate and clone JSON before persistence or display; never accept HTML. */
-export function parseProductRichText(input: unknown): ProductRichTextDocument | null {
+export function parseProductRichText(input: unknown, imageNamespace: RichTextImageNamespace = "shop"): ProductRichTextDocument | null {
+  const imagePath = imageNamespace === "group" ? groupImagePath : shopImagePath;
   if (input === null || input === undefined || input === "") return null;
   if (typeof input === "string") {
     if (new TextEncoder().encode(input).length > MAX_JSON_BYTES)
@@ -284,7 +288,7 @@ export function parseProductRichText(input: unknown): ProductRichTextDocument | 
       if (!match || match[0] !== inputAttrs.src)
         invalid("innehåller en otillåten bild. Välj en uppladdad produktbild.");
       const attrs: Extract<BlockNode, { type: "image" }>["attrs"] = {
-        src: `/api/shop/images/${match[1].toLowerCase()}`,
+        src: `${imageNamespace === "group" ? "/api/gruppfiler" : "/api/shop/images"}/${match[1].toLowerCase()}`,
       };
       for (const key of ["alt", "title"] as const) {
         if (key in inputAttrs)
@@ -373,10 +377,14 @@ export function parseProductRichText(input: unknown): ProductRichTextDocument | 
     : null;
 }
 
-export function productRichTextImageIds(document: ProductRichTextDocument | null): string[] {
+export function productRichTextImageIds(document: ProductRichTextDocument | null, imageNamespace: RichTextImageNamespace = "shop"): string[] {
+  const imagePath = imageNamespace === "group" ? groupImagePath : shopImagePath;
   const ids = new Set<string>();
   const visit = (node: ProductRichTextNode) => {
-    if (node.type === "image") ids.add(imagePath.exec(node.attrs.src)![1].toLowerCase());
+    if (node.type === "image") {
+      const match = imagePath.exec(node.attrs.src);
+      if (match) ids.add(match[1].toLowerCase());
+    }
     if ("content" in node) node.content?.forEach(visit);
   };
   document?.content.forEach(visit);

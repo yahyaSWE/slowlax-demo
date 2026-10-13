@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { membershipCourseAccessSql } from "./membership-access";
 import { DomainError } from "./db";
 import { getDb, transaction } from "./database";
 import { text } from "./validation";
@@ -69,7 +70,7 @@ async function requireLesson(userId: number, courseId: number, lessonId: number,
   id.parse(userId); ownership.parse({ courseId, lessonId });
   const row = await getDb().prepare(
     `SELECT l.id FROM lessons l JOIN courses c ON c.id=l.course_id JOIN users u ON u.id=?
-     WHERE l.id=? AND l.course_id=? AND ${adminOnly ? "u.role='admin'" : "(u.role='admin' OR (c.published=1 AND EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id=c.id AND e.user_id=u.id)))"}`,
+     WHERE l.id=? AND l.course_id=? AND ${adminOnly ? "u.role='admin'" : `(u.role='admin' OR (u.role='student' AND c.published=1 AND (EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id=c.id AND e.user_id=u.id) OR ${membershipCourseAccessSql()})))`}`,
   ).get(userId, lessonId, courseId);
   if (!row) throw new DomainError("Du har inte tillgång till den här lektionen.");
 }
@@ -154,7 +155,7 @@ export async function getStudentLessonActivities(userId: number, courseId: numbe
      JOIN activity_revisions r ON r.activity_id=a.id AND r.revision=a.current_revision
      JOIN courses c ON c.id=l.course_id JOIN users u ON u.id=?
      WHERE a.lesson_id=? AND l.course_id=? AND a.active=1
-     AND (u.role='admin' OR (c.published=1 AND EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id=c.id AND e.user_id=u.id)))
+     AND (u.role='admin' OR (u.role='student' AND c.published=1 AND (EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id=c.id AND e.user_id=u.id) OR ${membershipCourseAccessSql()})))
      ORDER BY a.position,a.id`,
   ).all(userId, lessonId, courseId);
   if (!rows.length) return [];

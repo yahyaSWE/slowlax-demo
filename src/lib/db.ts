@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { queueBookingEmails } from "./email-outbox";
+import { membershipCourseAccessSql } from "./membership-access";
 import type {
   Article,
   Booking,
@@ -376,7 +377,7 @@ export async function getPortalCourseSummaries(
          LEFT JOIN enrollments e ON e.course_id=c.id AND e.user_id=u.id
          LEFT JOIN (SELECT course_id,COUNT(*) AS total FROM lessons GROUP BY course_id) l ON l.course_id=c.id
          LEFT JOIN (SELECT l.course_id,COUNT(*) AS total FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=? GROUP BY l.course_id) p ON p.course_id=c.id
-         WHERE u.role='admin' OR (c.published=1 AND e.id IS NOT NULL)
+         WHERE u.role='admin' OR (u.role='student' AND c.published=1 AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()}))
          ORDER BY CASE WHEN u.role='admin' THEN c.id END DESC,e.created_at DESC,c.id DESC`,
       )
       .all(userId, userId)
@@ -413,7 +414,7 @@ export async function getCourseById(id: number) {
 export async function getAccessibleCourse(userId: number, courseId: number) {
   const row = await getDb()
     .prepare(
-      "SELECT c.* FROM courses c JOIN users u ON u.id=? WHERE c.id=? AND (u.role='admin' OR (c.published=1 AND EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=u.id AND e.course_id=c.id)))",
+      `SELECT c.* FROM courses c JOIN users u ON u.id=? WHERE c.id=? AND (u.role='admin' OR (u.role='student' AND c.published=1 AND (EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=u.id AND e.course_id=c.id) OR ${membershipCourseAccessSql()})))`,
     )
     .get(userId, courseId);
   return row ? course(row) : undefined;
@@ -543,7 +544,8 @@ export async function getStudentCourses(userId: number): Promise<Course[]> {
   return (
     await getDb()
       .prepare(
-        "SELECT c.* FROM courses c JOIN enrollments e ON c.id=e.course_id WHERE e.user_id=? AND c.published=1 ORDER BY e.created_at DESC",
+        `SELECT c.* FROM courses c JOIN users u ON u.id=? LEFT JOIN enrollments e ON e.course_id=c.id AND e.user_id=u.id
+         WHERE u.role='student' AND c.published=1 AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()}) ORDER BY e.created_at DESC,c.id DESC`,
       )
       .all(userId)
   ).map(course);
@@ -551,7 +553,7 @@ export async function getStudentCourses(userId: number): Promise<Course[]> {
 export async function hasCourseAccess(userId: number, courseId: number) {
   return !!(await getDb()
     .prepare(
-      "SELECT c.id FROM courses c JOIN users u ON u.id=? WHERE c.id=? AND (u.role='admin' OR (c.published=1 AND EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=u.id AND e.course_id=c.id)))",
+      `SELECT c.id FROM courses c JOIN users u ON u.id=? WHERE c.id=? AND (u.role='admin' OR (u.role='student' AND c.published=1 AND (EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=u.id AND e.course_id=c.id) OR ${membershipCourseAccessSql()})))`,
     )
     .get(userId, courseId));
 }

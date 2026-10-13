@@ -28,6 +28,8 @@ const links = [
   { href: "/admin/artiklar", label: "Artiklar", icon: FileText },
   { href: "/admin/kurser", label: "Kurser", icon: BookOpen },
   { href: "/admin/elever", label: "Elever", icon: Users },
+  { href: "/admin/grupper", label: "Grupper", icon: Users },
+  { href: "/admin/medlemskap", label: "Medlemskap", icon: TicketPercent },
   { href: "/admin/butik", label: "Butik", icon: Store },
   { href: "/admin/produkter", label: "Produkter", icon: Package },
   { href: "/admin/rabatter", label: "Rabatter", icon: TicketPercent },

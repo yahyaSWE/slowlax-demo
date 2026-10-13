@@ -3,6 +3,7 @@ import { databaseConfigured } from "@/lib/database-config";
 import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES, toIsoDate } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
 import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
+import { getPublicPlans } from "@/lib/memberships";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const seen = new Set<string>();
+  const plans = await getPublicPlans();
+  if (plans.length) {
+    entries.push({url:absoluteUrl("/medlemskap")});
+    for(const plan of plans) {
+      if(!/^[a-z0-9][a-z0-9-]*$/.test(plan.slug))continue;
+      const updated=toIsoDate(plan.updatedAt);
+      entries.push({url:absoluteUrl(`/medlemskap/${plan.slug}`),...(updated?{lastModified:new Date(updated)}:{})});
+    }
+  }
   if ((await getShopSettings()).enabled) {
     entries.push({ url: absoluteUrl("/butik") }, { url: absoluteUrl("/butik/villkor") });
     for (const product of await getPublicShopProducts()) {

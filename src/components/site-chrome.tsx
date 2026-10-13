@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { ArrowUpRight, Leaf, Menu, UserRound, X } from "lucide-react";
 import "./content-accessibility.css";
 import "./site-chrome-shop.css";
+import "./memberships/memberships.css";
 
 export function OliveMark({ className = "" }: { className?: string }) {
   return (
@@ -37,6 +38,7 @@ export function SiteChrome({
   legalName,
   organizationNumber,
   shopEnabled = false,
+  membershipEnabled = false,
 }: {
   children: React.ReactNode;
   siteName: string;
@@ -45,6 +47,7 @@ export function SiteChrome({
   legalName?: string;
   organizationNumber?: string;
   shopEnabled?: boolean;
+  membershipEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -55,6 +58,7 @@ export function SiteChrome({
     { href: "/", label: "Startsida" },
     { href: "/boka", label: "Behandlingar & bokning" },
     { href: "/kurser", label: "Kurser" },
+    ...(membershipEnabled ? [{ href: "/medlemskap", label: "Medlemskap" }] : []),
     { href: "/artiklar", label: "Artiklar" },
     { href: "/sjalvtest", label: "Självtest" },
     { href: "/om", label: "Om Tibb" },
@@ -69,7 +73,7 @@ export function SiteChrome({
         Hoppa till innehållet
       </a>
       <header
-        className={`site-header${shopEnabled ? " site-header-with-shop" : ""}`}
+        className={`site-header${shopEnabled ? " site-header-with-shop" : ""}${membershipEnabled ? " site-header-with-memberships" : ""}`}
         onKeyDown={(event) => {
           if (event.key === "Escape" && open) {
             setOpen(false);
@@ -196,6 +200,7 @@ export function SiteChrome({
               Våra kurser
             </Link>
             {shopEnabled && <Link href="/butik" intentOnly>Butik</Link>}
+            {membershipEnabled && <Link href="/medlemskap" intentOnly>Medlemskap</Link>}
             <Link href="/artiklar" intentOnly>
               Kunskap & artiklar
             </Link>
