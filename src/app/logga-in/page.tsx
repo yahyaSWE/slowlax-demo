@@ -5,6 +5,8 @@ import { ArrowRight, Leaf } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { loginAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
+import { accountAuthHref, safeAccountReturnTo } from "@/lib/account-return";
+import { resolveAccountReturnTo } from "@/lib/account-return-destination";
 
 export const metadata: Metadata = { ...PRIVATE_METADATA, title: "Logga in" };
 export const dynamic = "force-dynamic";
@@ -19,7 +21,8 @@ export default async function LoginPage({
   }>;
 }) {
   const [user, params] = await Promise.all([getCurrentUser(), searchParams]);
-  if (user) redirect(user.role === "admin" ? "/admin" : "/elevportal");
+  const returnTo = safeAccountReturnTo(params.returnTo, "");
+  if (user) redirect(await resolveAccountReturnTo(returnTo, user.role === "admin" ? "/admin" : "/elevportal"));
   return (
     <section className="section container auth-layout">
       <div className="auth-intro">
@@ -43,6 +46,7 @@ export default async function LoginPage({
       <div className="auth-card panel">
         <h2>Logga in</h2>
         <p className="muted">Använd e-postadressen som hör till ditt konto.</p>
+        {returnTo.startsWith("/kurser/") && <p className="notice">Logga in för att fortsätta till kursens köp.</p>}
         {params.error && (
           <p className="notice notice-error" role="alert">
             {params.error}
@@ -54,7 +58,7 @@ export default async function LoginPage({
           </p>
         )}
         <form action={loginAction} className="auth-form">
-          <input type="hidden" name="returnTo" value={params.returnTo || ""} />
+          <input type="hidden" name="returnTo" value={returnTo} />
           <label className="field">
             E-postadress
             <input
@@ -80,10 +84,10 @@ export default async function LoginPage({
             Logga in <ArrowRight size={17} />
           </button>
         </form>
-        <p className="small"><Link href="/glomt-losenord" className="inline-link">Glömt lösenord?</Link></p>
+        <p className="small"><Link href={accountAuthHref("/glomt-losenord", returnTo)} className="inline-link">Glömt lösenord?</Link></p>
         <p className="auth-switch muted">
           Ny här?{" "}
-          <Link href="/registrera" className="inline-link">
+          <Link href={accountAuthHref("/registrera", returnTo)} className="inline-link">
             Skapa ett konto
           </Link>
         </p>

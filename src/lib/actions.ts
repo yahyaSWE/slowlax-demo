@@ -39,6 +39,8 @@ import { createCheckout, getStripe } from "./stripe";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { sendVerificationEmail } from "./account-email";
 import { dispatchBookingEmailOutbox } from "./email-outbox";
+import { accountAuthHref, safeAccountReturnTo } from "./account-return";
+import { resolveAccountReturnTo } from "./account-return-destination";
 function path(value: string, fallback: string) {
   return /^\/(?!\/)/.test(value) &&
     !value.includes("\\") &&
@@ -65,11 +67,7 @@ async function formAction(
   authForm = false,
 ) {
   let destination = authForm
-    ? fallback +
-      (field(form, "returnTo")
-        ? "?returnTo=" +
-          encodeURIComponent(path(field(form, "returnTo"), "/elevportal"))
-        : "")
+    ? accountAuthHref(fallback as "/logga-in" | "/registrera", field(form, "returnTo"))
     : path(field(form, "returnTo"), fallback);
   try {
     const result = await work();
@@ -114,7 +112,7 @@ export async function loginAction(form: FormData): Promise<void> {
         await createSession(current.id);
         return current;
       });
-      return path(
+      return resolveAccountReturnTo(
         field(form, "returnTo"),
         user.role === "admin" ? "/admin" : "/elevportal",
       );
@@ -135,13 +133,15 @@ export async function signupAction(form: FormData): Promise<void> {
       await requestLimit("signup", input.email, 5);
       const user = await registerStudent(input);
       await createSession(user.id);
+      const returnTo = safeAccountReturnTo(field(form, "returnTo"), "");
+      const verifyPath = accountAuthHref("/verifiera-epost", returnTo);
       try {
-        await sendVerificationEmail(user.id);
+        await sendVerificationEmail(user.id, returnTo);
       } catch {
-        return "/verifiera-epost?message=" + encodeURIComponent("Ditt konto är skapat. E-postverifiering kunde inte skickas just nu. Ditt konto är inte verifierat ännu.");
+        return verifyPath + (verifyPath.includes("?") ? "&" : "?") + "message=" + encodeURIComponent("Ditt konto är skapat. E-postverifiering kunde inte skickas just nu. Ditt konto är inte verifierat ännu.");
       }
       return (
-        "/verifiera-epost?message=" +
+        verifyPath + (verifyPath.includes("?") ? "&" : "?") + "message=" +
         encodeURIComponent(
           "Ditt konto är skapat. E-posttjänsten har accepterat verifieringsmeddelandet. Öppna länken i din inkorg för att verifiera adressen.",
         )

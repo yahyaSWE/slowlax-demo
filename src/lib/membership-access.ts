@@ -1,3 +1,5 @@
+import { coursePurchaseGroupAccessSql } from "./course-purchase-access";
+
 /** A membership grant is independent of a lifetime enrollment and of sales status. */
 export function membershipGroupAccessSql(userExpr = "u.id", groupExpr = "g.id"): string {
   return `EXISTS(SELECT 1 FROM membership_groups mg_access
@@ -11,6 +13,7 @@ export function membershipGroupAccessSql(userExpr = "u.id", groupExpr = "g.id"):
         WHERE ms_access.group_id=mg_access.id AND ms_access.user_id=${userExpr}
         AND ms_access.status IN ('active','past_due') AND ms_access.blocked=0
         AND julianday(ms_access.paid_until)>julianday('now'))
+      OR ${coursePurchaseGroupAccessSql(userExpr, "mg_access.id")}
     ))`;
 }
 

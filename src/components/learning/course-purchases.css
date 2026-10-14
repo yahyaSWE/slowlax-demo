@@ -1,0 +1,10 @@
+.course-purchase-record { padding: 24px; }
+.course-purchase-record-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.course-purchase-record h3 { margin: 0; }
+.course-purchase-record details { margin-block: 20px; }
+.course-purchase-record summary { cursor: pointer; color: var(--green); }
+.course-purchase-record details .text-content { margin-top: 16px; }
+.course-purchase-actions { margin-top: 24px; }
+.course-purchase-consent { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.6; }
+.course-purchase-consent input { flex: 0 0 auto; margin-top: 4px; }
+.portal-nav { flex-wrap: wrap; }

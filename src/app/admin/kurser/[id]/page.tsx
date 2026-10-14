@@ -23,11 +23,17 @@ import {
   SectionHeading,
 } from "@/components/admin/common";
 import { CourseForm } from "@/components/admin/course-form";
+import { CourseSalesForm } from "@/components/admin/course-sales-form";
+import { getCourseSalesSettings } from "@/lib/course-sales";
+import { getAdminGroups } from "@/lib/memberships";
+import { stripeReady } from "@/lib/stripe";
 import { LessonForm } from "@/components/admin/lesson-form";
 import { CourseLessonActivities } from "@/components/admin/course-activities";
 import { CourseActivityResultsPanel } from "@/components/admin/course-activity-results";
 import { getCourseInformation } from "@/lib/business-settings";
 import { CourseInformationForm } from "@/components/admin/course-information-form";
+import { getAdminCoursePurchases } from "@/lib/course-purchase-billing";
+import { CoursePurchasesList } from "@/components/learning/course-purchases-list";
 import "@/components/admin/course-activities.css";
 
 export default async function CourseBuilderPage({
@@ -44,20 +50,24 @@ export default async function CourseBuilderPage({
   const course = await getCourseById(courseId);
   if (!course) notFound();
   const information = await getCourseInformation(course);
-  const [lessons, allEnrollments, activities, results] = await Promise.all([
+  const [lessons, allEnrollments, activities, results, sales, groups, purchases] = await Promise.all([
     getLessons(course.id),
     getEnrollments(),
     getAdminCourseActivities(user.id, course.id),
     getCourseActivityResults(user.id, course.id),
+    getCourseSalesSettings(course.id),
+    getAdminGroups(user.id),
+    getAdminCoursePurchases(user.id, course.id),
   ]);
   const enrollments = allEnrollments.filter((e) => e.courseId === course.id);
+  const studentCount = new Set([...enrollments.map(e => e.email), ...purchases.filter(p => !p.revoked).map(p => p.email)]).size;
   const returnTo = `/admin/kurser/${id}`;
   return (
     <>
       <AdminHeading
         eyebrow="Kursbyggare"
         title={course.title}
-        description={`${lessons.length} lektioner · ${activities.length} aktiviteter · ${enrollments.length} elever · ${course.published ? "Publicerad" : "Utkast"}`}
+        description={`${lessons.length} lektioner · ${activities.length} aktiviteter · ${studentCount} ${studentCount === 1 ? "elev" : "elever"} med separat kursåtkomst · ${course.published ? "Publicerad" : "Utkast"}`}
         action={
           <div className="admin-heading-actions">
             <Link
@@ -82,6 +92,10 @@ export default async function CourseBuilderPage({
           <CourseForm course={course} returnTo={returnTo} />
         </section>
         <CourseInformationForm courseId={course.id} information={information} />
+        <section className="panel form-panel">
+          <SectionHeading title="Försäljning och grupp efter köp" />
+          <CourseSalesForm settings={sales} groups={groups} stripeReady={stripeReady()} />
+        </section>
         <section className="panel">
           <SectionHeading
             title="Lektioner"
@@ -158,7 +172,7 @@ export default async function CourseBuilderPage({
         </section>
         <section className="panel">
           <SectionHeading
-            title="Elever med tillgång"
+            title="Manuellt tilldelad kursåtkomst"
             description="Eleven skapar först sitt konto och verifierar sin e-postadress från elevportalen. Tilldela sedan tillgång med samma adress."
           />
           {!course.published ? (
@@ -221,10 +235,14 @@ export default async function CourseBuilderPage({
               </table>
             </div>
           ) : (
-            <EmptyState title="Inga elever ännu">
+            <EmptyState title="Ingen manuellt tilldelad kursåtkomst">
               Tilldela en registrerad elev tillgång med formuläret ovan.
             </EmptyState>
           )}
+        </section>
+        <section className="panel">
+          <SectionHeading title="Kursköp" description="Bekräftade engångsköp och den gruppåtkomst som ingick. Återbetalningar och tvister hanteras i Stripe." />
+          <CoursePurchasesList purchases={purchases} admin />
         </section>
         <section className="panel danger-panel">
           <h2>Ta bort kurs</h2>

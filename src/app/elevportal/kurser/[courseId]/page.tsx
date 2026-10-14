@@ -15,6 +15,11 @@ import {
   getCourseProgress,
 } from "@/lib/db";
 import { TextContent } from "@/components/learning/cards";
+import { CourseActivityProgress } from "@/components/learning/course-activity-progress";
+import { getStudentCourseLearningStatus } from "@/lib/course-learning-status";
+import { getStudentCourseAccessState } from "@/lib/student-access";
+import { StudentAccessDetails, StudentAccessNotice } from "@/components/learning/student-access-notice";
+import styles from "@/components/learning/portal-learning.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +33,16 @@ export default async function StudentCoursePage({
   const courseId = Number(rawCourseId);
   if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();
   const course = await getAccessibleCourse(user.id, courseId);
-  if (!course) notFound();
-  const [lessons, completed] = await Promise.all([
+  if (!course) {
+    const access = await getStudentCourseAccessState(user.id, courseId);
+    if (!access || access.available) notFound();
+    return <StudentAccessNotice access={access} />;
+  }
+  const [lessons, completed, learningStatus, access] = await Promise.all([
     getLessonOutline(courseId),
     getCourseProgress(user.id, courseId),
+    getStudentCourseLearningStatus(user.id, courseId),
+    getStudentCourseAccessState(user.id, courseId),
   ]);
   const completedCount = lessons.filter((lesson) =>
     completed.includes(lesson.id),
@@ -39,8 +50,14 @@ export default async function StudentCoursePage({
   const progress = lessons.length
     ? Math.round((completedCount / lessons.length) * 100)
     : 0;
-  const nextLesson =
-    lessons.find((lesson) => !completed.includes(lesson.id)) || lessons[0];
+  const nextUnmarkedLesson = lessons.find((lesson) => !completed.includes(lesson.id));
+  const nextActivity = !nextUnmarkedLesson && learningStatus.activities.find((item) =>
+    ["not_started", "not_passed", "draft", "needs_revision", "updated"].includes(item.status),
+  );
+  const nextLesson = nextUnmarkedLesson || lessons[0];
+  const nextPath = nextActivity
+    ? `/elevportal/kurser/${courseId}/lektioner/${nextActivity.lessonId}#activity-${nextActivity.id}`
+    : nextLesson ? `/elevportal/kurser/${courseId}/lektioner/${nextLesson.id}` : null;
   return (
     <>
       <Link className="back-link" href="/elevportal">
@@ -48,9 +65,7 @@ export default async function StudentCoursePage({
       </Link>
       <div className="portal-course-heading">
         <div>
-          <p className="eyebrow">Tibb akademi</p>
           <h1 className="page-title">{course.title}</h1>
-          <TextContent text={course.description} />
         </div>
         <BookOpen size={73} strokeWidth={1} aria-hidden="true" />
       </div>
@@ -61,22 +76,25 @@ export default async function StudentCoursePage({
       )}
       <div className="portal-course-progress panel">
         <div>
-          <span className="eyebrow">Dina framsteg</span>
+          <span className="eyebrow">Lektionsframsteg</span>
           <h3>
-            {completedCount} av {lessons.length} lektioner genomförda
+            {completedCount} av {lessons.length} lektioner markerade som genomförda
           </h3>
-          <div className="progress-track">
+          <div className="progress-track" aria-hidden="true">
             <span style={{ width: `${progress}%` }} />
           </div>
+          <p className={`small muted ${styles.progressExplanation}`}>Markeringen sparar var du är i lektionerna.{learningStatus.activities.length > 0 && " Quiz och skrivuppgifter visas separat nedan."}</p>
         </div>
         <strong>{progress}%</strong>
-        {nextLesson && (
+        {nextPath && (
           <Link
             className="button button-primary"
-            href={`/elevportal/kurser/${courseId}/lektioner/${nextLesson.id}`}
+            href={nextPath}
           >
-            {progress === 100
-              ? "Repetera kursen"
+            {nextActivity
+              ? nextActivity.status === "needs_revision" ? "Komplettera uppgiften" : "Fortsätt med uppgifterna"
+              : progress === 100
+              ? "Repetera lektionerna"
               : completedCount
                 ? "Fortsätt kursen"
                 : "Börja kursen"}
@@ -84,6 +102,9 @@ export default async function StudentCoursePage({
           </Link>
         )}
       </div>
+      {access?.available && <section className={`panel ${styles.courseDescription}`} aria-label="Din kursåtkomst"><StudentAccessDetails access={access} /></section>}
+      <CourseActivityProgress courseId={courseId} status={learningStatus} />
+      {course.description && <details className={`panel ${styles.courseDescription}`}><summary>Om kursen</summary><TextContent text={course.description} /></details>}
       <div className="section-heading">
         <h2>Kursens lektioner</h2>
         <span className="muted">Lär i din egen takt</span>

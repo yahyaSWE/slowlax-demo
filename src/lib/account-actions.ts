@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { z } from "zod";
-import { createSession, destroySession, requireAdmin, requireUser } from "./auth";
+import { createSession, destroySession, getCurrentUser, requireAdmin } from "./auth";
 import { DomainError, transaction } from "./db";
 import { sendVerificationEmail, requestPasswordReset, resetPassword, verifyEmail, RESET_REQUEST_MESSAGE } from "./account-email";
 import { EmailConfigurationError, EmailDeliveryError, requireEmailConfiguration } from "./email-provider";
@@ -12,6 +12,8 @@ import { field, idField } from "./validation";
 import { dispatchBookingEmailOutbox, queueBookingEmails } from "./email-outbox";
 import { revalidatePath } from "next/cache";
 import type { AccountActionState } from "./account-action-state";
+import { accountAuthHref, accountReturnWithMessage, safeAccountReturnTo } from "./account-return";
+import { resolveAccountReturnTo } from "./account-return-destination";
 
 function failure(error: unknown): AccountActionState {
   if (error instanceof DomainError || error instanceof EmailConfigurationError || error instanceof EmailDeliveryError) return { error: error.message };
@@ -19,10 +21,11 @@ function failure(error: unknown): AccountActionState {
   return { error: "Åtgärden kunde inte slutföras. Försök igen om en stund." };
 }
 export async function resendVerificationAction(_previous: AccountActionState, form: FormData): Promise<AccountActionState> {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect(accountAuthHref("/logga-in", field(form, "returnTo")));
   try {
     await enforceRequestLimit("verify-email", String(user.id), 3, await headers());
-    await sendVerificationEmail(user.id);
+    await sendVerificationEmail(user.id, safeAccountReturnTo(field(form, "returnTo"), ""));
     return { message: user.emailVerifiedAt ? "Din adress är redan verifierad." : "E-posttjänsten har accepterat verifieringsmeddelandet. Kontrollera inkorg och skräppost." };
   } catch (error) { return failure(error); }
 }
@@ -33,7 +36,8 @@ export async function requestPasswordResetAction(_previous: AccountActionState, 
     requireEmailConfiguration();
     // Both existing and unknown addresses receive the same response before
     // account lookup/provider latency can disclose whether an account exists.
-    after(async () => { try { await requestPasswordReset(email); } catch { /* Generic response; no credentials or delivery details are logged. */ } });
+    const returnTo = safeAccountReturnTo(field(form, "returnTo"), "");
+    after(async () => { try { await requestPasswordReset(email, returnTo); } catch { /* Generic response; no credentials or delivery details are logged. */ } });
     return { message: RESET_REQUEST_MESSAGE };
   } catch (error) { return failure(error); }
 }
@@ -48,7 +52,8 @@ export async function verifyEmailAction(_previous: AccountActionState, form: For
       return verified;
     });
   } catch (error) { return failure(error); }
-  redirect("/elevportal?success=" + encodeURIComponent("Din e-postadress är verifierad. Administratören kan nu tilldela nya kurser."));
+  const destination = await resolveAccountReturnTo(field(form, "returnTo"), user.role === "admin" ? "/admin" : "/elevportal");
+  redirect(accountReturnWithMessage(destination, "Din e-postadress är verifierad. Du kan nu köpa kursen eller använda kurser och grupper som du fått tillgång till."));
 }
 export async function resetPasswordAction(_previous: AccountActionState, form: FormData): Promise<AccountActionState> {
   try {
@@ -57,7 +62,8 @@ export async function resetPasswordAction(_previous: AccountActionState, form: F
     await resetPassword({ token, password: field(form, "password") });
     await destroySession();
   } catch (error) { return failure(error); }
-  redirect("/logga-in?message=" + encodeURIComponent("Lösenordet är ändrat och tidigare sessioner är avslutade. Logga in med ditt nya lösenord."));
+  const login = accountAuthHref("/logga-in", field(form, "returnTo"));
+  redirect(login + (login.includes("?") ? "&" : "?") + "message=" + encodeURIComponent("Lösenordet är ändrat och tidigare sessioner är avslutade. Logga in med ditt nya lösenord."));
 }
 export async function retryBookingEmailsAction(form: FormData): Promise<void> {
   await requireAdmin();

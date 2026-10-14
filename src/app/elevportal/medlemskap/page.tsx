@@ -17,6 +17,7 @@ export default async function PortalMembershipsPage() {
 
   return (
     <>
+      <Link href="/elevportal/konto" className="back-link">Till mitt konto</Link>
       <header className="membership-hero">
         <h1 className="page-title">Mina abonnemang</h1>
         <p>Se betalningsstatus och hantera dina återkommande medlemskap.</p>

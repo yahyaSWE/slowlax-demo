@@ -60,6 +60,19 @@ export default async function PrivacyPage() {
         Anonymisera personer i dina exempel och lämna inte andra personers
         personnummer eller hälsouppgifter i kursuppgifter.
       </p>
+      <h2>När du köper en kurs</h2>
+      <p>
+        Kursköpet kopplas till ditt inloggade elevkonto. Vi sparar vald kurs,
+        pris, moms, accepterade köpvillkor, betalningsstatus och uppgifter som
+        identifierar betalningen hos Stripe. Om en grupp ingår sparar vi också
+        vilken grupp du får tillgång till och ett eventuellt slutdatum.
+        Uppgifterna används för att hantera köpet och din kurs- och gruppåtkomst.
+      </p>
+      <p>
+        Betalningen hanteras av Stripe. Faktureringsadressen som du lämnar vid
+        betalningen behandlas hos Stripe. Kortuppgifter lagras inte i Tibb.nu:s
+        databas. Du ser dina kursköp när du är inloggad under Mina köp.
+      </p>
       <h2>Grupper och abonnemang</h2>
       <p>
         Vi sparar dina grupptilldelningar och abonnemang, accepterade

@@ -1,0 +1,56 @@
+.student-picker-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 13px 15px;
+  border: 1px solid var(--line, #cfdcc6);
+  border-radius: 12px;
+  background: #fffefa;
+  color: var(--green, #35584c);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.student-picker-toggle > span { flex: 1; min-width: 0; }
+.student-picker-toggle > svg { flex-shrink: 0; }
+.student-picker-toggle:hover { border-color: var(--green, #35584c); }
+.student-picker strong, .student-picker small { display: block; overflow-wrap: anywhere; }
+.student-picker small { margin-top: 3px; font-size: 12px; color: #59675b; }
+.student-picker-panel {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid #cfdcc6;
+  border-radius: 14px;
+  background: #edf1e7;
+}
+.student-picker-panel > label { display: block; margin-bottom: 8px; font-size: 12px; }
+.student-picker-search { position: relative; }
+.student-picker-search > svg { position: absolute; left: 13px; top: 16px; pointer-events: none; color: #59675b; }
+.admin-shell .student-picker-search > input { width: 100%; padding-left: 38px; }
+.student-picker .student-picker-count { margin: 12px 0; color: #59675b; font-size: 12px; }
+.student-picker-results { list-style: none; padding: 0; margin: 0; max-height: 280px; overflow-y: auto; overscroll-behavior: contain; }
+.student-picker-results li + li { margin-top: 6px; }
+.student-picker-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: #fffefa;
+  color: #26483d;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.student-picker-result > span { min-width: 0; }
+.student-picker-result > svg { flex-shrink: 0; }
+.student-picker-result:not(:disabled):hover, .student-picker-result[aria-pressed="true"] { background: #e2e9da; border-color: #8ba083; }
+.student-picker-result:disabled { opacity: 1; cursor: not-allowed; background: #f6f4ef; }
+.student-picker .student-picker-unverified { color: #835127; }
+.student-picker .student-picker-empty { margin: 14px 0 0; font-size: 13px; color: #59675b; }
+.student-picker :focus-visible { outline: 2px solid var(--green, #35584c); outline-offset: 3px; }

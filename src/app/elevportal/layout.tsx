@@ -6,6 +6,7 @@ import { logoutAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { PortalNav } from "@/components/learning/portal-nav";
 import "@/components/content-accessibility.css";
+import "@/components/learning/portal-dashboard.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -37,7 +38,7 @@ export default async function PortalLayout({
             <ArrowLeft size={15} />
             <span>Till hemsidan</span>
           </Link>
-          <span className="portal-user">{user.name}</span>
+          <Link href="/elevportal/konto" className="portal-user" aria-label="Mitt konto">{user.name}</Link>
           <form action={logoutAction}>
             <button
               type="submit"

@@ -5,6 +5,8 @@ import { ArrowRight, Sprout } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { signupAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
+import { accountAuthHref, safeAccountReturnTo } from "@/lib/account-return";
+import { resolveAccountReturnTo } from "@/lib/account-return-destination";
 
 export const metadata: Metadata = { ...PRIVATE_METADATA, title: "Skapa konto" };
 export const dynamic = "force-dynamic";
@@ -12,10 +14,11 @@ export const dynamic = "force-dynamic";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
 }) {
   const [user, params] = await Promise.all([getCurrentUser(), searchParams]);
-  if (user) redirect(user.role === "admin" ? "/admin" : "/elevportal");
+  const returnTo = safeAccountReturnTo(params.returnTo, "");
+  if (user) redirect(await resolveAccountReturnTo(returnTo, user.role === "admin" ? "/admin" : "/elevportal"));
   return (
     <section className="section container auth-layout">
       <div className="auth-intro">
@@ -26,8 +29,8 @@ export default async function SignupPage({
           <em>växa.</em>
         </h1>
         <p className="lead muted">
-          Skapa ditt konto och verifiera din e-postadress. När du anmält dig
-          till en kurs ger administratören dig tillgång i elevportalen.
+          Skapa ditt konto och verifiera din e-postadress. Köpta kurser och
+          kurser eller grupper som du tilldelats samlas sedan i elevportalen.
         </p>
         <Sprout
           className="auth-leaf"
@@ -39,12 +42,14 @@ export default async function SignupPage({
       <div className="auth-card panel">
         <h2>Skapa ett konto</h2>
         <p className="muted">Börja med dina uppgifter nedan.</p>
+        {returnTo.startsWith("/kurser/") && <p className="notice">Efter e-postverifieringen kommer du tillbaka till kursen för att slutföra ditt köp. Att skapa konto innebär inget köp.</p>}
         {params.error && (
           <p className="notice notice-error" role="alert">
             {params.error}
           </p>
         )}
         <form action={signupAction} className="auth-form">
+          <input type="hidden" name="returnTo" value={returnTo} />
           <label className="field">
             Ditt namn
             <input
@@ -82,7 +87,8 @@ export default async function SignupPage({
           </label>
           <p className="small muted">
             Ditt konto används för inloggning, kursåtkomst och dina framsteg.
-            Tibb.nu tilldelar kursåtkomst efter anmälan.
+            Kurser med onlineköp blir tillgängliga efter bekräftad betalning.
+            Du kan också få tillgång genom tilldelning eller en grupp.
           </p>
           <button className="button button-primary full-width" type="submit">
             Skapa konto <ArrowRight size={17} />
@@ -90,7 +96,7 @@ export default async function SignupPage({
         </form>
         <p className="auth-switch muted">
           Har du redan ett konto?{" "}
-          <Link href="/logga-in" className="inline-link">
+          <Link href={accountAuthHref("/logga-in", returnTo)} className="inline-link">
             Logga in
           </Link>
         </p>

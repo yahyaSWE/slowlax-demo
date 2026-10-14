@@ -85,7 +85,7 @@ Logga sedan in på `/logga-in` och öppna `/admin`. Det finns inga förinställd
 - **Grupper och medlemskap:** koppla kurser, tilldela verifierade elever manuellt och publicera privat gruppmaterial med text, bilder, PDF och Word-filer. Förbered månads- och årsabonnemang som utkast och aktivera försäljningen när Stripe är anslutet. Elever hittar innehållet under Mina grupper och betalningarna under Mina abonnemang. Separat permanent kurstillgång bevaras när ett abonnemang avslutas. Läs [installationsguiden för medlemskap](docs/memberships-setup.md).
 - **Beställningar:** se verifierad betalning, kunduppgifter och leveransval. Markera skickad/redo för hämtning/hämtad och ange ett valfritt spårningsnummer.
 
-Kurser tilldelas av admin; automatiska kursköp ingår inte i denna version. Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken.
+Kurser kan tilldelas av admin eller köpas med en engångsbetalning via Stripe; välj vid behov **Grupp efter köp** i kursbyggaren för automatisk gruppåtkomst med eller utan slutdatum. Läs [guiden för kursköp och automatisk grupptilldelning](docs/course-purchases-setup.md). Eleven ser tilldelade publicerade kurser och kan markera lektioner som slutförda. Text lagras och återges som vanlig text med stycken.
 
 ### Förbered produktbutiken
 

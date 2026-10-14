@@ -1,0 +1,23 @@
+.portal-resume { display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 30px; margin-bottom: 32px; background: var(--green); color: var(--paper); border-radius: 22px; }
+.portal-resume h2 { margin: 4px 0 12px; font-size: 32px; color: inherit; }
+.portal-resume .eyebrow { color: var(--peach); }
+.portal-resume p { color: var(--paper); }
+.portal-resume .button { flex-shrink: 0; background: var(--peach); color: var(--green); }
+.portal-course-choice { display: flex; flex-direction: column; min-width: 0; }
+.portal-course-choice > .course-card { flex: 1; }
+.portal-course-choice > .button { margin-top: 12px; align-self: flex-start; }
+.portal-material-preview { margin-top: 44px; }
+.portal-material-preview .membership-card { min-width: 0; }
+.portal-account-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; margin-block: 28px; }
+.portal-account-grid .panel { min-width: 0; }
+.portal-account-grid dd { margin: 4px 0 18px; overflow-wrap: anywhere; }
+.portal-account-grid dt { font-size: 12px; color: var(--muted); }
+.portal-account-links { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.portal-shell .portal-nav { flex-wrap: wrap; }
+@media(max-width:600px) {
+  .portal-resume { flex-direction: column; align-items: flex-start; gap: 14px; padding: 24px; }
+  .portal-resume h2 { font-size: 27px; }
+  .portal-account-grid { grid-template-columns: 1fr; }
+  .portal-shell > .portal-nav { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0 8px; }
+  .portal-shell > .portal-nav > a { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: 7px; min-width: 0; padding: 14px 3px; font-size: 11px; line-height: 1.4; }
+}

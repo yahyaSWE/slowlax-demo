@@ -11,8 +11,8 @@ export const metadata = createPageMetadata({
 });
 export const dynamic = "force-dynamic";
 
-export default async function CoursesPage() {
-  const courses = await getCourses({ publishedOnly: true });
+export default async function CoursesPage({ searchParams }: { searchParams: Promise<{ message?: string }> }) {
+  const [courses, query] = await Promise.all([getCourses({ publishedOnly: true }), searchParams]);
   return (
     <>
       <section className="learning-hero section container">
@@ -71,6 +71,7 @@ export default async function CoursesPage() {
         </div>
       </section>
       <section id="kurser" className="section container learning-catalog">
+        {query.message && <p className="notice" role="status">{query.message.slice(0, 500)}</p>}
         <div className="section-heading">
           <div>
             <p className="eyebrow">Din nästa fördjupning</p>
@@ -96,8 +97,8 @@ export default async function CoursesPage() {
           </div>
         )}
         <p className="catalog-note">
-          Kursåtkomst tilldelas av Tibb.nu. Kontakta oss om du vill veta mer om
-          en kurs.
+          Kurser med onlineköp kan köpas direkt på kurssidan. För övriga kurser
+          kontaktar du oss för anmälan och tilldelning av kursåtkomst.
         </p>
       </section>
     </>

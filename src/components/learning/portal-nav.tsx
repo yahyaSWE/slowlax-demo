@@ -2,7 +2,7 @@
 
 import { NavigationLink as Link } from "@/components/navigation-link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Compass, Users, CreditCard } from "lucide-react";
+import { BookOpen, Users, UserRound } from "lucide-react";
 
 export function PortalNav() {
   const pathname = usePathname();
@@ -17,13 +17,10 @@ export function PortalNav() {
         <BookOpen size={17} /> Mina kurser
       </Link>
       <Link href="/elevportal/grupper" intentOnly className={pathname.startsWith("/elevportal/grupper") ? "active" : ""} aria-current={pathname.startsWith("/elevportal/grupper") ? "page" : undefined}>
-        <Users size={17} aria-hidden="true"/> Mina grupper
+        <Users size={17} aria-hidden="true"/> Grupper & material
       </Link>
-      <Link href="/elevportal/medlemskap" intentOnly className={pathname === "/elevportal/medlemskap" ? "active" : ""} aria-current={pathname === "/elevportal/medlemskap" ? "page" : undefined}>
-        <CreditCard size={17} aria-hidden="true"/> Mina abonnemang
-      </Link>
-      <Link href="/kurser" intentOnly>
-        <Compass size={17} /> Utforska kurser
+      <Link href="/elevportal/konto" intentOnly className={["/elevportal/konto", "/elevportal/kop", "/elevportal/medlemskap"].some(path => pathname.startsWith(path)) ? "active" : ""} aria-current={["/elevportal/konto", "/elevportal/kop", "/elevportal/medlemskap"].some(path => pathname.startsWith(path)) ? "page" : undefined}>
+        <UserRound size={17} aria-hidden="true"/> Mitt konto
       </Link>
     </nav>
   );

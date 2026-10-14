@@ -5,6 +5,7 @@ import { membershipGroupAccessSql } from "./membership-access";
 import { parseGroupRichText, groupRichTextImageIds } from "./group-rich-text";
 import { emailSchema, slug, text } from "./validation";
 import { appUrl } from "./stripe";
+import { getStudentGroupAccessStates } from "./student-access";
 import type { Course, UploadedMaterial } from "./types";
 import type {
   MembershipGroup, MembershipPlan, MembershipAssignment, MembershipPost, MembershipSettings,
@@ -180,8 +181,10 @@ export async function saveMembershipSettings(actorId: number, input: { salesEnab
 const groupPermission = `(u.role='admin' OR (u.role='student' AND ${membershipGroupAccessSql()}))`;
 export async function getPortalGroups(userId: number): Promise<MembershipGroup[]> {
   positiveId.parse(userId);
-  return groupsFromRows(await getDb().prepare(`SELECT g.* FROM membership_groups g JOIN users u ON u.id=?
+  const groups = await groupsFromRows(await getDb().prepare(`SELECT g.* FROM membership_groups g JOIN users u ON u.id=?
     WHERE ${groupPermission} ORDER BY g.name,g.id`).all(userId), true);
+  const access = await getStudentGroupAccessStates(userId);
+  return groups.map(group => ({ ...group, access: access.find(state => state.id === group.id) }));
 }
 export async function getAccessibleGroup(userId: number, groupId: number): Promise<MembershipGroup | undefined> {
   positiveId.parse(userId); positiveId.parse(groupId);

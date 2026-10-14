@@ -6,7 +6,6 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
-  Circle,
   RotateCcw,
 } from "lucide-react";
 import { requireUser } from "@/lib/auth";
@@ -15,6 +14,7 @@ import {
   getLesson,
   getLessonOutline,
   getCourseProgress,
+  getDb,
 } from "@/lib/db";
 import { markLessonAction } from "@/lib/actions";
 import { TextContent } from "@/components/learning/cards";
@@ -23,6 +23,11 @@ import {
   LessonMaterial,
 } from "@/components/learning/lesson-media";
 import { LessonActivities } from "@/components/learning/lesson-activities";
+import { LessonCourseMenu } from "@/components/learning/lesson-course-menu";
+import { getStudentCourseAccessState } from "@/lib/student-access";
+import { StudentAccessNotice } from "@/components/learning/student-access-notice";
+import { formatDateTime } from "@/lib/time";
+import styles from "@/components/learning/portal-learning.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -45,12 +50,19 @@ export default async function LessonPage({
   )
     notFound();
   const course = await getAccessibleCourse(user.id, courseId);
-  if (!course) notFound();
-  const [lessons, lesson, completed, query] = await Promise.all([
+  if (!course) {
+    const access = await getStudentCourseAccessState(user.id, courseId);
+    if (!access || access.available) notFound();
+    const exists = await getDb().prepare("SELECT id FROM lessons WHERE id=? AND course_id=?").get(lessonId, courseId);
+    if (!exists) notFound();
+    return <StudentAccessNotice access={access} />;
+  }
+  const [lessons, lesson, completed, query, access] = await Promise.all([
     getLessonOutline(courseId),
     getLesson(lessonId, courseId),
     getCourseProgress(user.id, courseId),
     searchParams,
+    getStudentCourseAccessState(user.id, courseId),
   ]);
   const index = lessons.findIndex((lesson) => lesson.id === lessonId);
   if (index < 0 || !lesson) notFound();
@@ -58,9 +70,6 @@ export default async function LessonPage({
   const completedCount = lessons.filter((item) =>
     completed.includes(item.id),
   ).length;
-  const progress = lessons.length
-    ? Math.round((completedCount / lessons.length) * 100)
-    : 0;
   const coursePath = `/elevportal/kurser/${courseId}`;
   const lessonPath = `${coursePath}/lektioner/${lessonId}`;
   const nextLesson = lessons[index + 1];
@@ -73,43 +82,19 @@ export default async function LessonPage({
         <ArrowLeft size={16} /> {course.title}
       </Link>
       <div className="lesson-layout">
-        <aside className="lesson-sidebar panel">
-          <p className="eyebrow">Din kurs</p>
-          <h2>{course.title}</h2>
-          <div className="progress-track">
-            <span style={{ width: `${progress}%` }} />
-          </div>
-          <p className="small muted">
-            {completedCount} av {lessons.length} genomförda
-          </p>
-          <nav aria-label="Kurslektioner">
-            {lessons.map((item, itemIndex) => (
-              <Link
-                className={item.id === lessonId ? "active" : ""}
-                aria-current={item.id === lessonId ? "page" : undefined}
-                key={item.id}
-                href={`${coursePath}/lektioner/${item.id}`}
-              >
-                <span className="lesson-sidebar-icon">
-                  {completed.includes(item.id) ? (
-                    <CheckCircle2 size={17} />
-                  ) : (
-                    <Circle size={17} />
-                  )}
-                </span>
-                <span>
-                  <small>Lektion {itemIndex + 1}</small>
-                  {item.title}
-                </span>
-              </Link>
-            ))}
-          </nav>
-        </aside>
+        <LessonCourseMenu courseId={courseId} courseTitle={course.title} lessons={lessons} completed={completed} lessonId={lessonId} />
         <article className="lesson-content">
           <p className="eyebrow">
             Lektion {index + 1} av {lessons.length}
           </p>
           <h1>{lesson.title}</h1>
+          <p className={styles.lessonProgress}>{completedCount} av {lessons.length} lektioner markerade som genomförda.
+            {access?.available && access.expiresAt && <> Tillgång till {formatDateTime(access.expiresAt)}.</>}
+          </p>
+          <nav className={styles.lessonQuickNav} aria-label="Bläddra mellan lektioner">
+            {index > 0 ? <Link className="text-link" href={`${coursePath}/lektioner/${lessons[index - 1].id}`}><ArrowLeft size={16} /> Föregående</Link> : <span />}
+            <Link className="text-link" href={nextPath}>{nextLesson ? "Nästa lektion" : "Kursöversikt"}<ArrowRight size={16} /></Link>
+          </nav>
           {query.error && (
             <p className="notice notice-error" role="alert">
               {query.error}
@@ -136,7 +121,7 @@ export default async function LessonPage({
               <>
                 <div className="lesson-completed-label">
                   <CheckCircle2 size={22} />
-                  <span>Du har genomfört den här lektionen.</span>
+                  <span>Du har markerat den här lektionen som genomförd.</span>
                 </div>
                 <Link className="button button-primary" href={nextPath}>
                   {nextLesson ? "Nästa lektion" : "Till kursöversikten"}
@@ -155,7 +140,8 @@ export default async function LessonPage({
                 <div>
                   <h3>Redo att gå vidare?</h3>
                   <p className="muted">
-                    Markera lektionen som genomförd för att spara dina framsteg.
+                    Markera lektionen som genomförd för att spara dina lektionsframsteg.
+                    Quiz och skrivuppgifter får egna resultat.
                   </p>
                 </div>
                 <form action={markLessonAction}>
@@ -164,7 +150,7 @@ export default async function LessonPage({
                   <input type="hidden" name="returnTo" value={nextPath} />
                   <button className="button button-primary" type="submit">
                     <Check size={17} />
-                    {nextLesson ? "Klar och gå vidare" : "Slutför kursen"}
+                    {nextLesson ? "Markera och gå vidare" : "Markera lektionen som genomförd"}
                   </button>
                 </form>
               </>

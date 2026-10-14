@@ -23,6 +23,9 @@ import {
 import { buildCourseSchema } from "@/lib/seo-content";
 import { getPublicCourse } from "@/lib/seo-data";
 import { getBusinessSettings, getCourseInformation } from "@/lib/business-settings";
+import { getCoursePurchaseOffer, hasPermanentCourseAccess } from "@/lib/course-sales";
+import { CoursePurchaseButton } from "@/components/learning/course-purchase-controls";
+import { accountAuthHref } from "@/lib/account-return";
 
 export const dynamic = "force-dynamic";
 
@@ -43,20 +46,26 @@ export async function generateMetadata({
 
 export default async function CoursePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ success?: string }>;
 }) {
   const { slug } = await params;
   const course = await getPublicCourse(slug);
   if (!course) notFound();
   const courseSchema = buildCourseSchema(course);
-  const [lessons, user, information, business] = await Promise.all([
+  const [lessons, user, information, business, offer] = await Promise.all([
     getLessonOutline(course.id),
     getCurrentUser(),
     getCourseInformation(course),
     getBusinessSettings(),
+    getCoursePurchaseOffer(course.id),
   ]);
   const hasAccess = user ? await hasCourseAccess(user.id, course.id) : false;
+  const permanentAccess = user?.role === "student" ? await hasPermanentCourseAccess(user.id, course.id) : false;
+  const query = await searchParams;
+  const coursePath = `/kurser/${course.slug}`;
   return (
     <section className="section container course-detail">
       {courseSchema && <JsonLd id="course-schema" data={courseSchema} />}
@@ -71,6 +80,7 @@ export default async function CoursePage({
           },
         ])}
       />
+      {query.success && <p className="notice notice-success" role="status">{query.success.slice(0, 500)}</p>}
       <Link href="/kurser" className="back-link">
         <ArrowLeft size={16} /> Alla kurser
       </Link>
@@ -126,6 +136,14 @@ export default async function CoursePage({
               </p>
             )}
           </div>
+          {offer && (
+            <section className="course-information-section prose">
+              <h2>Köpvillkor för kursen</h2>
+              <p>Kursen säljs av {business.legalName}, organisationsnummer {business.organizationNumber}.</p>
+              <TextContent text={offer.terms} />
+              <p><Link href="/kontakt" className="inline-link">Kontakta oss om kursköpet</Link> · <Link href="/villkor" className="inline-link">Boknings- och kursvillkor</Link></p>
+            </section>
+          )}
         </div>
         <aside className="course-enrollment panel">
           <div className="course-enrollment-art" aria-hidden="true">
@@ -133,6 +151,7 @@ export default async function CoursePage({
           </div>
           <p className="eyebrow">En investering i din kunskap</p>
           <p className="course-price">{formatPrice(course.priceOre)}</p>
+          {offer && <p className="small muted">Engångsbetalning · inklusive {offer.vatPercent}% moms</p>}
           <ul className="check-list">
             <li>
               <Check size={16} /> Tillgång via din elevportal
@@ -144,15 +163,23 @@ export default async function CoursePage({
             <li>
               <Check size={16} /> Följ dina framsteg lektion för lektion
             </li>
+            {offer?.groupName && <li><Check size={16} /> Gruppen {offer.groupName} ingår{offer.groupAccessDays === null ? " utan tidsgräns" : ` i ${offer.groupAccessDays} dagar efter betalningen`}.</li>}
           </ul>
-          {hasAccess ? (
+          {hasAccess && (
             <Link
               className="button button-primary full-width"
               href={`/elevportal/kurser/${course.id}`}
             >
               Öppna kursen <ArrowRight size={17} />
             </Link>
-          ) : (
+          )}
+          {offer && !permanentAccess && user?.role !== "admin" && hasAccess && <p className="small muted">Du har tillgång via en grupp. Du kan även köpa kursen för att få egen kursåtkomst utan tidsgräns.</p>}
+          {offer && !permanentAccess ? (
+            user?.role === "admin" ? <p className="notice">Du granskar kursen som administratör. Kursköp görs med ett elevkonto.</p>
+              : !user ? <div className="stack"><Link className="button button-primary full-width" href={accountAuthHref("/logga-in", coursePath)}>Logga in för att köpa kursen</Link><Link className="text-link" href={accountAuthHref("/registrera", coursePath)}>Skapa elevkonto</Link></div>
+                : !user.emailVerifiedAt ? <p className="notice">Verifiera din e-postadress innan du köper kursen. <Link href={accountAuthHref("/verifiera-epost", coursePath)} className="inline-link">Verifiera e-post</Link></p>
+                  : <CoursePurchaseButton courseId={course.id} courseRevision={offer.courseRevision} settingsRevision={offer.settingsRevision} priceLabel={formatPrice(offer.priceOre)} />
+          ) : !hasAccess && !offer ? (
             <>
               <Link
                 className="button button-primary full-width"
@@ -164,7 +191,7 @@ export default async function CoursePage({
                 Tibb.nu hjälper dig med anmälan och tilldelar sedan kursåtkomst.
               </p>
             </>
-          )}
+          ) : null}
           {!user && (
             <p className="small muted">
               Har du redan tillgång?{" "}

@@ -9,7 +9,7 @@ delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN; dele
 test("v7 migration creates disabled empty memberships atomically and preserves historical users, courses, activities, payments and progress", async () => {
   const client = createClient({ url: "file::memory:", intMode: "number", concurrency: 1 });
   // Reuse every pre-v8 migration and seed exactly as deployed, omitting only
-  // the three additive membership fragments to create an isolated v7 fixture.
+  // the additive membership and later course-purchase fragments to create an isolated v7 fixture.
   const legacy = new DatabaseAdapter();
   const legacyClient = new Proxy(client, {
     get(target, property) {
@@ -18,7 +18,7 @@ test("v7 migration creates disabled empty memberships atomically and preserves h
         return new Proxy(tx, {
           get(transaction, key) {
             if (key === "executeMultiple") return async (sql: string) => {
-              if (!/CREATE TABLE IF NOT EXISTS membership_/.test(sql)) await transaction.executeMultiple(sql);
+              if (!/CREATE TABLE IF NOT EXISTS (membership_|course_sales_settings)/.test(sql)) await transaction.executeMultiple(sql);
             };
             const value = Reflect.get(transaction, key);
             return typeof value === "function" ? value.bind(transaction) : value;

@@ -1,7 +1,7 @@
 // Increase this version whenever schema definitions or migrations change.
 // It is recorded in app_meta (and local SQLite's user_version) only when the
 // complete migration and initial seed commit successfully.
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 export const SCHEMA_VERSION_KEY = "schema_version";
 
 export const ACCOUNT_EMAIL_SCHEMA = `

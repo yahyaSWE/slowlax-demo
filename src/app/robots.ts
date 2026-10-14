@@ -15,6 +15,7 @@ export default function robots(): MetadataRoute.Robots {
     "/api/",
     "/bokning",
     "/bestallning",
+    "/kurskop",
     "/butik/kassa",
     "/butik/varukorg",
     "/medlemskap/bekraftelse",

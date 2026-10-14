@@ -5,12 +5,14 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { LoaderCircle, Save } from "lucide-react";
 import type { Course, UploadedMaterial } from "@/lib/types";
+import type { AdminStudentChoice } from "@/lib/admin-students";
 import type { MembershipGroup, MembershipPlan, MembershipPost, MembershipSettings } from "@/lib/membership-types";
 import type { ContentActionState } from "@/lib/content-action-state";
 import type { AssignmentFields, GroupFields, MembershipSettingsFields, PlanFields, PostFields } from "@/lib/membership-form-state";
 import { assignGroupAction, saveGroupAction, saveGroupPostAction, saveMembershipSettingsAction, savePlanAction } from "@/lib/membership-actions";
 import { useContentForm } from "@/lib/use-content-form";
 import { GroupFileUpload } from "./group-file-upload";
+import { StudentPicker } from "./student-picker";
 import { Field } from "./common";
 import "../memberships/memberships.css";
 
@@ -21,7 +23,7 @@ function useMemberForm<Values>(action:(state:ContentActionState<Values>,form:For
   return form;
 }
 function FormError({error,errorRef}:{error?:string;errorRef:React.RefObject<HTMLDivElement|null>}) {return error?<div className="notice notice-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>:null;}
-function SaveButton({pending,busy=false,children}:{pending:boolean;busy?:boolean;children:React.ReactNode}) {return <button type="submit" className="button button-primary" disabled={pending||busy}>{pending||busy?<><LoaderCircle size={17} className="admin-submit-spinner" aria-hidden="true"/>{busy?"Laddar upp…":"Sparar…"}</>:<><Save size={17} aria-hidden="true"/>{children}</>}</button>;}
+function SaveButton({pending,busy=false,disabled=false,children}:{pending:boolean;busy?:boolean;disabled?:boolean;children:React.ReactNode}) {return <button type="submit" className="button button-primary" disabled={pending||busy||disabled}>{pending||busy?<><LoaderCircle size={17} className="admin-submit-spinner" aria-hidden="true"/>{busy?"Laddar upp…":"Sparar…"}</>:<><Save size={17} aria-hidden="true"/>{children}</>}</button>;}
 
 export function GroupForm({group,courses}:{group?:MembershipGroup;courses:Course[]}) {
   const form=useMemberForm<GroupFields>(saveGroupAction,{name:group?.name??"",slug:group?.slug??"",description:group?.description??"",courseIds:group?.courseIds.map(String)??[],published:group?.published??false,expectedUpdatedAt:group?.updatedAt??""},`group-${group?.id??"new"}`);
@@ -73,7 +75,8 @@ export function MembershipSettingsForm({settings}:{settings:MembershipSettings})
   return <form action={form.action} className="stack" onSubmit={form.onSubmit} aria-busy={form.pending}><input type="hidden" name="expectedUpdatedAt" value={form.values.expectedUpdatedAt}/><FormError error={form.error} errorRef={form.errorRef}/><fieldset className="stack content-form-fields" disabled={form.pending}><legend className="sr-only">Försäljning och villkor</legend><Field label="Villkor för abonnemang" name="membership-terms" help="Ange vad som ingår, betalningsintervall och regler för uppsägning. Eleven godkänner dessa innan betalning."><textarea id="membership-terms" name="terms" rows={7} maxLength={20000} value={form.values.terms} onChange={event=>form.setValues(current=>({...current,terms:event.target.value}))}/></Field><label className="form-check"><input type="checkbox" name="salesEnabled" checked={form.values.salesEnabled} onChange={event=>form.setValues(current=>({...current,salesEnabled:event.target.checked}))}/><span>Öppna för nya abonnemang på hemsidan</span></label><p className="small muted">När försäljningen är avstängd kan du fortsätta skapa utkast och tilldela grupper manuellt. Befintliga abonnemang fortsätter löpa och behöver hanteras separat.</p></fieldset><div><SaveButton pending={form.pending}>Spara försäljning och villkor</SaveButton></div></form>;
 }
 
-export function GroupAssignmentForm({groupId}:{groupId:number}) {
+export function GroupAssignmentForm({groupId,students}:{groupId:number;students:AdminStudentChoice[]}) {
   const form=useMemberForm<AssignmentFields>(assignGroupAction,{email:"",groupId:String(groupId),expiresAt:""},`assignment-${groupId}`);
-  return <form action={form.action} className="stack" onSubmit={form.onSubmit} aria-busy={form.pending}><input type="hidden" name="groupId" value={groupId}/><FormError error={form.error} errorRef={form.errorRef}/><fieldset className="stack content-form-fields" disabled={form.pending}><legend className="sr-only">Tilldela gruppåtkomst</legend><Field label="Elevens e-postadress" name="member-email" help="Eleven behöver ett konto med verifierad e-postadress."><input id="member-email" name="email" type="email" required maxLength={254} value={form.values.email} onChange={event=>form.setValues(current=>({...current,email:event.target.value}))}/></Field><Field label="Till och med (valfritt)" name="member-expires" help="Tomt innebär obegränsad manuell gruppåtkomst. Slutdatum gäller hela dagen i svensk tid."><input id="member-expires" name="expiresAt" type="date" value={form.values.expiresAt} onInput={event=>{const expiresAt=event.currentTarget.value;form.setValues(current=>({...current,expiresAt}));}} onChange={event=>form.setValues(current=>({...current,expiresAt:event.target.value}))}/></Field></fieldset><div><SaveButton pending={form.pending}>Tilldela gruppåtkomst</SaveButton></div></form>;
+  const selected=students.find(student=>student.email.toLowerCase()===form.values.email.toLowerCase());
+  return <form action={form.action} className="stack" onSubmit={form.onSubmit} aria-busy={form.pending}><input type="hidden" name="groupId" value={groupId}/><input type="hidden" name="email" value={form.values.email}/><FormError error={form.error} errorRef={form.errorRef}/><fieldset className="stack content-form-fields" disabled={form.pending}><legend className="sr-only">Tilldela gruppåtkomst</legend><Field label="Elev" name="member-student" help="Alla registrerade elever visas. E-postadressen måste vara verifierad för att åtkomst ska kunna tilldelas."><StudentPicker id="member-student" students={students} value={form.values.email} disabled={form.pending} onChange={email=>form.setValues(current=>({...current,email}))}/></Field><Field label="Till och med (valfritt)" name="member-expires" help="Tomt innebär obegränsad manuell gruppåtkomst. Slutdatum gäller hela dagen i svensk tid."><input id="member-expires" name="expiresAt" type="date" value={form.values.expiresAt} onInput={event=>{const expiresAt=event.currentTarget.value;form.setValues(current=>({...current,expiresAt}));}} onChange={event=>form.setValues(current=>({...current,expiresAt:event.target.value}))}/></Field></fieldset><div><SaveButton pending={form.pending} disabled={!selected?.emailVerified}>Tilldela gruppåtkomst</SaveButton></div></form>;
 }

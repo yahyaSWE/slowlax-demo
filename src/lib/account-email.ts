@@ -3,6 +3,7 @@ import { DomainError, getDb, getUser, getUserByEmail, transaction, type User } f
 import { randomToken, tokenHash, hashPassword, verifyPassword } from "./security";
 import { emailSchema, passwordSchema } from "./validation";
 import { requireEmailConfiguration, sendEmail } from "./email-provider";
+import { safeAccountReturnTo } from "./account-return";
 
 const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/, "Länken är ogiltig eller har löpt ut.");
 type TokenKind = "verify-email" | "reset-password";
@@ -23,11 +24,13 @@ async function issueToken(userId: number, kind: TokenKind) {
   });
   return { token, hash };
 }
-async function deliverToken(user: User, kind: TokenKind) {
+async function deliverToken(user: User, kind: TokenKind, returnTo?: string) {
   const config = requireEmailConfiguration();
   const issued = await issueToken(user.id, kind);
   const url = new URL(kind === "verify-email" ? "/verifiera-epost" : "/aterstall-losenord", config.origin);
   url.searchParams.set("token", issued.token);
+  const destination = safeAccountReturnTo(returnTo, "");
+  if (destination) url.searchParams.set("returnTo", destination);
   const text = kind === "verify-email"
     ? `Bekräfta e-postadressen för ditt konto hos Tibb.nu:\n\n${url}\n\nLänken gäller i 24 timmar och behöver ditt registrerade lösenord. Om du inte skapade kontot ska du inte bekräfta det; använd Glömt lösenord på hemsidan för att återta adressen. Dela inte länken.`
     : `Välj ett nytt lösenord till ditt konto hos Tibb.nu:\n\n${url}\n\nLänken gäller i 30 minuter och kan användas en gång. Återställningen loggar ut alla tidigare sessioner och bekräftar att du äger e-postadressen. Om du inte begärde detta behöver du inte göra något. Dela inte länken.`;
@@ -36,20 +39,20 @@ async function deliverToken(user: User, kind: TokenKind) {
   await sendEmail({ to: user.email, subject: kind === "verify-email" ? "Bekräfta din e-postadress hos Tibb.nu" : "Återställ ditt lösenord hos Tibb.nu", text,
     idempotencyKey: `account-${issued.hash}` });
 }
-export async function sendVerificationEmail(userId: number) {
+export async function sendVerificationEmail(userId: number, returnTo?: string) {
   requireEmailConfiguration();
   const user = await getUser(userId);
   if (!user || user.role !== "student") throw new DomainError("Verifiering gäller ditt elevkonto.");
   if (user.emailVerifiedAt) return;
-  await deliverToken(user, "verify-email");
+  await deliverToken(user, "verify-email", returnTo);
 }
-export async function requestPasswordReset(email: string): Promise<string> {
+export async function requestPasswordReset(email: string, returnTo?: string): Promise<string> {
   // Configuration errors are identical for every address and never pretend
   // that an email was sent. Provider failures must not enumerate accounts.
   requireEmailConfiguration();
   const user = await getUserByEmail(emailSchema.parse(email));
   if (user) {
-    try { await deliverToken(user, "reset-password"); }
+    try { await deliverToken(user, "reset-password", returnTo); }
     catch { /* A generic request response reveals neither account nor delivery. */ }
   }
   return RESET_REQUEST_MESSAGE;

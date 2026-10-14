@@ -69,7 +69,7 @@ export function LessonActivity({ activity }: { activity: LessonActivityView }) {
   }, [openedVersion.revision]);
 
   return (
-    <div ref={container} className={styles.versionContainer}>
+    <div id={`activity-${activity.id}`} ref={container} className={styles.versionContainer}>
       {outdated && (
         <aside className={styles.versionWarning}>
           <div role="alert">
@@ -252,6 +252,9 @@ export function QuizActivityForm({
   const latest = attempts.find(
     (attempt) => attempt.revision === activity.revision,
   );
+  const hasPassedCurrentVersion = attempts.some(
+    (attempt) => attempt.revision === activity.revision && attempt.passed,
+  );
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const changedAnswers =
     !!latest &&
@@ -311,6 +314,12 @@ export function QuizActivityForm({
             Försök {latest.attemptNumber} ·{" "}
             <ActivityDate value={latest.submittedAt} />
           </p>
+          {!latest.passed && hasPassedCurrentVersion && (
+            <p className="small muted">
+              Du har redan ett godkänt försök på den här versionen. Det finns kvar
+              i kursens resultat när du fortsätter öva.
+            </p>
+          )}
         </div>
       )}
       <ActivityMessage

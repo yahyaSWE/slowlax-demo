@@ -17,6 +17,7 @@
   display: grid;
   gap: 14px;
   min-width: 0;
+  scroll-margin-top: 24px;
 }
 
 .versionWarning {

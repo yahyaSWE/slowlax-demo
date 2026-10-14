@@ -26,7 +26,8 @@ export async function LessonActivities({
         <p className="eyebrow">Öva och reflektera</p>
         <h2 id="lesson-activities-title">Aktiviteter i lektionen</h2>
         <p className="muted">
-          Svara i din egen takt och följ dina resultat här.
+          Svara i din egen takt och följ dina resultat här. Quiz och skrivuppgifter
+          bedöms separat från din markering av lektionen som genomförd.
         </p>
       </header>
       {activities.map((activity) => {

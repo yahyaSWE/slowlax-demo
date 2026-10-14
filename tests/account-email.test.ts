@@ -7,6 +7,7 @@ import { sendVerificationEmail, verifyEmail, requestPasswordReset, resetPassword
 import { EmailConfigurationError, emailConfigurationStatus, sendEmail } from "../src/lib/email-provider";
 import { enforceRequestLimit, trustedClientIp } from "../src/lib/request-rate-limit";
 import { hashPassword, tokenHash, verifyPassword } from "../src/lib/security";
+import { resolveAccountReturnTo, UNAVAILABLE_SELECTED_COURSE } from "../src/lib/account-return-destination";
 
 // Independent real SQLite; no deployment credentials, disk or email network.
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "TRUST_PROXY", "RESEND_API_KEY", "EMAIL_FROM", "APP_URL"]) delete process.env[key];
@@ -48,6 +49,11 @@ function mailedToken() {
   const token = new URL(url[0]).searchParams.get("token");
   assert.match(token!, /^[a-f0-9]{64}$/);
   return token!;
+}
+function mailedUrl() {
+  const match = sent.at(-1)?.text.match(/https:\/\/website\.example\.test\/[^\s]+/);
+  assert.ok(match);
+  return new URL(match[0]);
 }
 async function addSession(userId: number, raw: string) {
   await getDb().prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)")
@@ -105,6 +111,50 @@ test("expired links fail while recent resend links stay valid until successful c
   assert.notEqual(old, current);
   assert.ok((await verifyEmail({ token: old, password: originalPassword })).emailVerifiedAt);
   await assert.rejects(verifyEmail({ token: current, password: originalPassword }), /Länken/);
+});
+
+test("selected course is carried by verification email and resend links across browsers without bypassing the password", async () => {
+  const user = await student();
+  const id = await course();
+  const slug = String((await getDb().prepare("SELECT slug FROM courses WHERE id=?").get(id))!.slug);
+  const destination = `/kurser/${slug}`;
+  await sendVerificationEmail(user.id, destination);
+  const initial = mailedUrl();
+  assert.equal(initial.searchParams.get("returnTo"), destination);
+  await assert.rejects(verifyEmail({ token: initial.searchParams.get("token")!, password: "wrong fixture password" }), /lösenord/);
+  assert.equal((await getUser(user.id))!.emailVerifiedAt, null);
+  assert.equal(await resolveAccountReturnTo(initial.searchParams.get("returnTo")), destination);
+  await sendVerificationEmail(user.id, destination);
+  const resent = mailedUrl();
+  assert.equal(resent.searchParams.get("returnTo"), destination);
+  assert.notEqual(resent.searchParams.get("token"), initial.searchParams.get("token"));
+  assert.ok((await verifyEmail({ token: resent.searchParams.get("token")!, password: originalPassword })).emailVerifiedAt);
+  assert.equal(await resolveAccountReturnTo(resent.searchParams.get("returnTo")), destination);
+});
+
+test("unavailable selected courses return to the catalog and unsafe email destinations are omitted", async () => {
+  const user = await student();
+  const id = await course();
+  const slug = String((await getDb().prepare("SELECT slug FROM courses WHERE id=?").get(id))!.slug);
+  await getDb().prepare("UPDATE courses SET published=0 WHERE id=?").run(id);
+  for (const destination of [`/kurser/${slug}`, "/kurser/course-no-longer-exists"]) {
+    const redirect = new URL(await resolveAccountReturnTo(destination), "https://website.example.test");
+    assert.equal(redirect.pathname, "/kurser");
+    assert.equal(redirect.searchParams.get("message"), UNAVAILABLE_SELECTED_COURSE);
+  }
+  await sendVerificationEmail(user.id, "//evil.example/steal");
+  assert.equal(mailedUrl().searchParams.has("returnTo"), false);
+  assert.equal(await resolveAccountReturnTo("/%252f%252fevil.example"), "/elevportal");
+});
+
+test("password reset emails retain selected course context while legacy links still omit a return destination", async () => {
+  const user = await student();
+  assert.equal(await requestPasswordReset(user.email, "/kurser/avancerad-hijama"), RESET_REQUEST_MESSAGE);
+  assert.equal(mailedUrl().pathname, "/aterstall-losenord");
+  assert.equal(mailedUrl().searchParams.get("returnTo"), "/kurser/avancerad-hijama");
+  await sendVerificationEmail(user.id);
+  assert.equal(mailedUrl().searchParams.has("returnTo"), false);
+  assert.ok((await verifyEmail({ token: mailedToken(), password: originalPassword })).emailVerifiedAt);
 });
 
 test("reset reclaims a squatted email, changes credentials and revokes every session and token", async () => {

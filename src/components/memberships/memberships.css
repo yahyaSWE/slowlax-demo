@@ -32,6 +32,8 @@
 .membership-checkout .form-check { align-items:flex-start; }
 .membership-checkout button { justify-content:center; }
 .membership-status { margin:14px 0; }
+.membership-access-summary { margin-bottom:24px; }
+.membership-access-summary p { margin:8px 0; }
 .membership-subscription { border:1px solid #cfdcc6; border-radius:18px; padding:24px; margin-bottom:18px; }
 .membership-subscription dl { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .membership-subscription dt { color:var(--muted,#637060); font-size:13px; }

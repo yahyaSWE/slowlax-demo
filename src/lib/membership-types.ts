@@ -1,9 +1,11 @@
 import type { ProductRichTextDocument } from "./product-rich-text";
 import type { Course, UploadedMaterial } from "./types";
+import type { StudentAccessState } from "./student-access";
 
 export type MembershipGroup = {
   id: number; name: string; slug: string; description: string; published: boolean;
   createdAt: string; updatedAt: string; courseIds: number[]; courses: Course[];
+  access?: StudentAccessState;
 };
 export type MembershipPlan = {
   id: number; groupId: number; groupName: string; name: string; slug: string;

@@ -63,7 +63,7 @@ export function CourseCard({
               />
             </div>
             <div className="course-card-footer">
-              <span>{progress}% genomförd</span>
+              <span>{progress}% av lektionerna markerade</span>
               <ArrowUpRight size={19} />
             </div>
           </div>

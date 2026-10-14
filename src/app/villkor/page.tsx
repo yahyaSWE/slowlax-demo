@@ -7,7 +7,7 @@ import { createPageMetadata } from "@/lib/seo";
 
 export const metadata = createPageMetadata({
   title: "Boknings- och kursvillkor", path: "/villkor",
-  description: "Läs villkoren för bokning, återbud och tilldelad kursåtkomst hos Tibb.nu samt hur du kontaktar verksamheten.",
+  description: "Läs villkoren för bokning, återbud, kursköp och kursåtkomst hos Tibb.nu samt hur du kontaktar verksamheten.",
 });
 
 export default async function TermsPage() {
@@ -33,10 +33,19 @@ export default async function TermsPage() {
       {business.cancellationDetails && <TextContent text={business.cancellationDetails} />}
       <h2>Kursåtkomst</h2>
       <p>
-        Kursbeskrivning och pris finns på respektive kurssida. Kursåtkomst
-        tilldelas av administratören efter överenskommelse. Kontakta oss för
-        anmälan och betalning. Du behöver ett elevkonto med verifierad e-postadress
-        innan en ny kursåtkomst kan tilldelas.
+        Kursbeskrivning och pris finns på respektive kurssida. När onlineköp är
+        aktiverat kan du betala kursen med en engångsbetalning via Stripe. Du läser
+        och accepterar kursens köpvillkor innan du går vidare till betalningen.
+        Du behöver ett elevkonto med verifierad e-postadress. Administratören kan
+        också tilldela kursåtkomst efter överenskommelse.
+      </p>
+      <p>
+        Ett verifierat kursköp ger permanent tillgång till den köpta kursen.
+        Om en grupp ingår visas gruppen och eventuell tidsgräns före köpet.
+        Gruppåtkomsten ges automatiskt när betalningen bekräftas. En tidsgräns
+        för gruppen ändrar inte den köpta kursens permanenta åtkomst.
+        Separat manuellt tilldelad åtkomst och åtkomst genom abonnemang hanteras
+        oberoende av kursköpet.
       </p>
       <TextContent text={business.courseAccessDescription} />
       <p>
@@ -49,8 +58,9 @@ export default async function TermsPage() {
         När en konsument ingår ett kursavtal på distans kan lagstadgad ångerrätt
         gälla. Villkoren beror bland annat på hur avtalet ingås och om det gäller
         en tjänst eller digitalt innehåll. Kontakta oss om du vill ångra eller
-        avboka en kurs. Att öppna en lektion på Tibb.nu används inte som ett
-        automatiskt avstående från ångerrätt.
+        avboka en kurs. Att begära omedelbar kursåtkomst vid köpet eller öppna en
+        lektion på Tibb.nu används inte som ett automatiskt avstående från
+        ångerrätt.
       </p>
       <p>
         Läs <a href="https://www.konsumentverket.se/varor-och-tjanster/angra-eller-avboka-en-kurs-eller-utbildning/" target="_blank" rel="noopener noreferrer">

@@ -8,11 +8,13 @@ import {
 } from "@/lib/db";
 import { getStripe } from "@/lib/stripe";
 import { dispatchBookingEmailOutbox } from "@/lib/email-outbox";
+import { CoursePurchaseHttpError, readCoursePurchaseBody, reconcileCoursePurchaseEvent } from "@/lib/course-purchase-billing";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   const signature = request.headers.get("stripe-signature");
-  if (!secret || !signature)
+  if (!secret || !signature || signature.length > 4096)
     return NextResponse.json(
       { error: "Webhook not configured or signature missing" },
       { status: 400 },
@@ -21,14 +23,20 @@ export async function POST(request: Request) {
   let event;
   try {
     event = stripe.webhooks.constructEvent(
-      await request.text(),
+      await readCoursePurchaseBody(request, 1024 * 1024),
       signature,
       secret,
     );
-  } catch {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof CoursePurchaseHttpError ? "Request too large" : "Invalid signature" },
+      { status: error instanceof CoursePurchaseHttpError ? error.status : 400 });
   }
   try {
+    if (await reconcileCoursePurchaseEvent(event, stripe)) return NextResponse.json({ received: true });
+    // Membership and shop sessions carry the same application label. Their
+    // dedicated webhooks own them; they must not enter booking fulfillment.
+    const objectMetadata = "metadata" in event.data.object ? event.data.object.metadata : null;
+    if (objectMetadata?.integration && objectMetadata.integration !== "booking") return NextResponse.json({ received: true });
     if (
       event.type === "checkout.session.completed" ||
       event.type === "checkout.session.async_payment_succeeded"
