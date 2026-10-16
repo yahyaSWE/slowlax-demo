@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { databaseConfigured } from "./database-config";
 
-export const SITE_NAME = "Tibb.nu";
-export const PRACTITIONER_NAME = "Johan Yahya Blomdahl";
-export const CITY = "Jönköping";
-const FALLBACK_URL = "https://tibbnu.vercel.app";
+export const SITE_NAME = "Slowlax";
+const FALLBACK_URL = "https://slowlax.se";
 
 function publicOrigin(value: string | undefined): URL | undefined {
   if (!value) return;
@@ -73,7 +71,7 @@ export function createPageMetadata({ title, description, path, type = "website",
 }): Metadata {
   const url = absoluteUrl(path);
   const image = { url: absoluteUrl("/opengraph-image"), width: 1200, height: 630,
-    alt: "Tibb.nu – traditionell kinesisk medicin i Jönköping" };
+    alt: "Slowlax – etiska och halalinvesteringar" };
   const cleanDescription = description.replace(/\s+/g, " ").trim();
   return {
     title, description: cleanDescription,
@@ -102,7 +100,6 @@ export function toIsoDate(value: string): string | undefined {
 
 export function organizationId() { return `${absoluteUrl("/")}#organization`; }
 export function websiteId() { return `${absoluteUrl("/")}#website`; }
-export function practitionerId() { return `${absoluteUrl("/om")}#johan-yahya-blomdahl`; }
 
 export function buildBreadcrumbSchema(items: { name: string; path: string }[]) {
   return { "@context": "https://schema.org", "@type": "BreadcrumbList",
@@ -118,25 +115,26 @@ export function serializeJsonLd(data: unknown): string {
 export function buildOrganizationSchema(contact?: { email?: string; phone?: string; address?: string }) {
   return { "@context": "https://schema.org", "@type": "Organization",
     "@id": organizationId(), name: SITE_NAME, url: absoluteUrl("/"),
-    description: "Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen. Behandlingar i Jönköping, kurser och artiklar.",
-    logo: absoluteUrl("/images/tibb-mark.svg"),
-    location: { "@type": "Place", name: CITY,
-      address: { "@type": "PostalAddress", addressLocality: CITY, addressCountry: "SE",
-        ...(contact?.address ? { streetAddress: contact.address } : {}) } },
+    description: "Utbildning, kurser och gemenskap inom etiska och halalinvesteringar.",
+    logo: absoluteUrl("/images/slowlax-logo-white.png"),
+    ...(contact?.address ? { address: { "@type": "PostalAddress", streetAddress: contact.address } } : {}),
     ...(contact?.email ? { email: contact.email } : {}),
     ...(contact?.phone ? { telephone: contact.phone } : {}),
   };
 }
 
 export const PUBLIC_PAGES = [
-  { path: "/", title: "Tibb.nu", description: "Traditionell kinesisk medicin i Jönköping, behandlingar, kurser och artiklar." },
-  { path: "/boka", title: "Boka en behandling", description: "Välj behandling, behandlare, tillgängligt datum och tid. Se pris och längd innan du bokar." },
-  { path: "/kurser", title: "Kurser", description: "Publicerade kurser inom traditionell medicin. Köp online när det erbjuds eller kontakta oss för anmälan och kursåtkomst." },
-  { path: "/artiklar", title: "Artiklar", description: "Kunskap och reflektion om klassisk kinesisk medicin och profetisk vägledning." },
+  { path: "/", title: "Slowlax", description: "Lär dig investera långsiktigt enligt dina värderingar med kurser inom etiska och halalinvesteringar." },
+  { path: "/kurser", title: "Kurser", description: "Utforska våra kurser om etiska och halalinvesteringar och lär i din egen takt." },
+  { path: "/paket", title: "Kurspaket", description: "Utforska paket med flera kurser och tillgång till de grupper som ingår." },
+  { path: "/artiklar", title: "Nyheter och artiklar", description: "Kunskap och perspektiv på etiska investeringar och halalfinansiering." },
+  { path: "/investeringsfilosofi", title: "Halal investering", description: "Slowlax investeringsfilosofi och principer för etiskt och långsiktigt aktiesparande." },
+  { path: "/rening", title: "Rening av investeringar", description: "Läs om Slowlax arbete med granskning och rening av investeringar." },
+  { path: "/medlemskap", title: "Medlemskap", description: "Utforska Bas och Premium hos Slowlax och lär tillsammans med vår gemenskap." },
   { path: "/sjalvtest", title: "Självtest med fem faser", description: "Ett självtest för utbildning och självreflektion. Testet är inte en medicinsk diagnos." },
-  { path: "/om", title: "Om Tibb.nu och Johan Yahya Blomdahl", description: "Behandlarens bakgrund, utbildningar och förhållningssätt i Jönköping." },
-  { path: "/kontakt", title: "Kontakt", description: "Kontakta Tibb.nu om behandlingar i Jönköping och kursåtkomst." },
-  { path: "/vanliga-fragor", title: "Vanliga frågor", description: "Svar om bokning, behandlare, priser, kursåtkomst och självtestet." },
-  { path: "/integritet", title: "Integritet", description: "Information om hur personuppgifter hanteras på Tibb.nu." },
-  { path: "/villkor", title: "Boknings- och kursvillkor", description: "Villkor för bokning, återbud, kursköp och kursåtkomst hos Tibb.nu." },
+  { path: "/om", title: "Om Slowlax", description: "Vår gemenskap för utbildning och kunskapsdelning inom etiska och halalinvesteringar." },
+  { path: "/kontakt", title: "Kontakt", description: "Kontakta Slowlax om kurser, medlemskap och kursåtkomst." },
+  { path: "/vanliga-fragor", title: "Vanliga frågor", description: "Svar om kurser, elevkonton, medlemskap och kursmaterial hos Slowlax." },
+  { path: "/integritet", title: "Integritet", description: "Information om hur personuppgifter hanteras på Slowlax." },
+  { path: "/villkor", title: "Kurs- och medlemsvillkor", description: "Villkor för kursköp, kursåtkomst och medlemskap hos Slowlax." },
 ] as const;

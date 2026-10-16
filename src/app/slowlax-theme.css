@@ -1,0 +1,132 @@
+/* Slowlax's published palette: black, white and #DD9933 gold. */
+:root { --paper:#fff; --ivory:#f7f9fa; --sage:#f3f3f1; --green:#171717; --deep:#000; --olive:#966018; --ink:#171717; --muted:#646464; --line:#e1e1de; --sand:#f6e9d6; --peach:#dd9933; }
+body { --serif:var(--font-serif,"Poppins",Arial,sans-serif); --sans:var(--font-sans,"Inter",Arial,sans-serif); font-family:var(--sans); }
+h1,h2,h3,h4 { font-weight:600; letter-spacing:-.045em; line-height:1.2; }
+h1 em,h2 em { font-style:normal; color:#a36a16; }
+h2 { font-size:clamp(28px,3.3vw,42px); }
+h3 { font-size:24px; }
+.eyebrow { color:#956215; letter-spacing:.15em; font-size:10px; font-weight:600; }
+.button { border-radius:6px; font-weight:600; }
+.button-primary { background:#dd9933; color:#111; }
+.button-primary:hover { background:#ecb052; }
+.button-secondary { color:#171717; border-color:#ccc; }
+.button:focus-visible,a:focus-visible,button:focus-visible { outline:3px solid #c07c18; outline-offset:4px; }
+.panel { background:#fff; }
+.public-site .site-header { background:#000; height:88px; border-bottom:1px solid #ffffff25; }
+.header-inner { width:100%; max-width:1280px; padding-inline:40px; }
+.slowlax-brand img { width:166px; height:auto; display:block; }
+.public-site .desktop-nav a { color:#dedede; font-size:12px; }
+.public-site .desktop-nav a:hover,.public-site .desktop-nav a.active { color:#dd9933; }
+.public-site .desktop-nav a.active::after { background:#dd9933; }
+.public-site .portal-link { border-radius:6px; color:white; border-color:#ffffff50; white-space:nowrap; flex-shrink:0; }
+.public-site .portal-link:hover { background:#222; }
+.public-site .mobile-menu { background:#111; }
+.public-site .site-footer { background:#000; color:#fff; }
+.public-site .footer-top p,.public-site .footer-top>div:not(:first-child)>a { color:#c4c4c4; }
+.public-site .footer-label { color:#dd9933; }
+.public-site .footer-note { border-color:#ffffff25; color:#dd9933; }
+.public-site .footer-note p { color:#c4c4c4; }
+.public-site .footer-bottom { color:#aaa; border-color:#ffffff25; }
+.public-site .site-footer .brand { margin-bottom:22px; }
+.inner-page .page-heading { border-radius:12px; background:#111; background-image:none; }
+.inner-page .page-heading h1 { font-size:clamp(34px,4.5vw,55px); }
+.inner-page .page-heading h1 em { color:#dd9933; }
+.inner-page .page-heading p { color:#ddd; }
+.inner-page .page-heading .eyebrow { color:#dd9933; }
+.inner-page .about-image { background:#f7f9fa; border-radius:14px; }
+.inner-page .about-image img { object-fit:contain; }
+.inner-page .about-grid>.prose { background:#f7f9fa; }
+.inner-page .investment-philosophy-page .prose :is(h2,h3,p,.eyebrow,em,a) { color:#000; }
+.learning-hero-visual { background:#f6e9d6; color:#8d611f; }
+.learning-hero-visual p { color:#171717; }
+.course-art,.course-art-0,.course-art-1,.course-art-2 { background:#f6e9d6; color:#926120; }
+.course-card,.article-card { background:#fff; }
+.course-art.slowlax-course-art { background:#151515; }
+.slowlax-course-art img { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+.slowlax-course-art .course-art-badge { z-index:1; background:#fff; color:#111; }
+.slowlax-section-intro { max-width:680px; margin-bottom:30px; font-size:15px; }
+.slowlax-home.home-page { --home-forest:#111; --home-deep:#000; --home-sage:#f7f9fa; --home-cream:#fff; --home-peach:#dd9933; --ink:#171717; --muted:#646464; --line:#e1e1de; --olive:#966018; }
+.slowlax-home.home-page .home-hero-section { min-height:650px; background:#111; isolation:isolate; display:flex; flex-direction:column; }
+.slowlax-hero-image { object-fit:cover; object-position:70% center; z-index:-2; }
+.slowlax-home .home-hero-section::before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,rgba(0,0,0,.96),rgba(0,0,0,.82) 35%,rgba(0,0,0,.30) 75%),linear-gradient(0deg,rgba(0,0,0,.65),transparent 40%); z-index:-1; }
+.slowlax-hero-content { padding-block:76px 70px; }
+.slowlax-kicker { color:#ddd; font-size:10px; font-weight:500; letter-spacing:.17em; display:flex; gap:11px; align-items:center; margin-bottom:26px; }
+.slowlax-kicker>span { width:22px; height:2px; background:#dd9933; }
+.slowlax-hero-content h1 { font-size:clamp(37px,4.1vw,58px); line-height:1.18; color:#fff; letter-spacing:-.045em; max-width:780px; font-weight:600; }
+.slowlax-hero-content h1 em { color:#dd9933; font-style:normal; }
+.slowlax-hero-content>p { max-width:500px; color:#ddd; font-size:16px; line-height:1.9; margin-top:25px; }
+.slowlax-home.home-page .hero-actions { margin-top:30px; gap:28px; display:flex; flex-wrap:wrap; align-items:center; }
+.slowlax-home.home-page .hero-actions .button,.slowlax-home.home-page .visit-cta .button { border-radius:6px; background:#dd9933; color:#111; font-size:13px; }
+.slowlax-home.home-page .hero-actions .text-link { color:#eee; }
+.hero-assurances { display:flex; gap:25px; flex-wrap:wrap; font-size:11px; color:#c5c5c5; margin-top:28px; }
+.hero-assurances>span { display:inline-flex; align-items:center; gap:7px; }
+.hero-assurances svg { color:#dd9933; }
+.slowlax-hero-foot { padding-block:18px; border-top:1px solid #ffffff30; display:flex; justify-content:space-between; gap:20px; font-size:9px; letter-spacing:.13em; color:#ccc; margin-top:auto; }
+.slowlax-hero-foot a { display:flex; align-items:center; gap:12px; color:#dd9933; letter-spacing:0; font-size:11px; }
+.slowlax-home .slowlax-section-heading { display:grid; grid-template-columns:1.3fr 1fr; gap:75px; align-items:end; margin-bottom:38px; }
+.slowlax-section-heading h2 { margin-top:14px; }
+.slowlax-section-heading>p { font-size:14px; line-height:1.9; max-width:390px; }
+.slowlax-home.home-page .section-heading h2 { font-size:clamp(28px,3.3vw,42px); }
+.slowlax-home.home-page .path-card { border-radius:10px; background:#f7f9fa; color:#171717; border:1px solid #e6e6e3; padding:30px; }
+.slowlax-home.home-page .path-card:nth-child(1) { background:#111; border-color:#111; color:#fff; }
+.slowlax-home.home-page .path-card:nth-child(3) { background:#faf4e9; }
+.slowlax-home.home-page .path-card h3 { font-size:22px; letter-spacing:-.035em; margin-bottom:14px; }
+.slowlax-home.home-page .path-icon { background:#edd5af; color:#111; border-radius:8px; margin-bottom:24px; }
+.slowlax-home.home-page .path-number { font-family:var(--sans); color:#a36a16; font-size:11px; }
+.slowlax-home.home-page .path-card:nth-child(1) .path-number { color:#dd9933; }
+.slowlax-home.home-page .path-card:nth-child(1)>p,.slowlax-home.home-page .path-card:nth-child(1) .path-card-bottom { color:#ddd; }
+.slowlax-home.home-page .path-card-bottom { color:#8d5c13; font-size:11px; border-top:1px solid #ddd; padding-top:20px; }
+.slowlax-home.home-page .home-learning-section { padding-top:5px; }
+.slowlax-home .card-grid { grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); }
+.slowlax-community { background:#111; color:#fff; }
+.slowlax-community-inner { display:grid; grid-template-columns:1fr 1.2fr; gap:100px; padding-block:80px; align-items:center; }
+.slowlax-community h2 { color:#fff; font-size:clamp(32px,3.4vw,44px); margin-bottom:24px; }
+.slowlax-community h2 em { color:#dd9933; }
+.slowlax-community .eyebrow { color:#dd9933; margin-bottom:16px; }
+.slowlax-community p { color:#bbb; font-size:14px; line-height:1.9; }
+.slowlax-community .button { margin-top:27px; }
+.slowlax-community-mark { border:1px solid #dd99335c; border-radius:50%; aspect-ratio:1; max-width:330px; display:flex; justify-content:center; align-items:center; gap:25px; flex-direction:column; color:#dd9933; background:radial-gradient(#dd993312,transparent 70%); }
+.slowlax-community-mark span { font-size:12px; font-weight:500; letter-spacing:.25em; text-align:center; color:#c9c4bc; }
+.slowlax-membership-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.slowlax-plan { border:1px solid #ddd; border-radius:12px; padding:35px; display:flex; flex-direction:column; align-items:flex-start; }
+.slowlax-plan>svg { color:#966018; margin-bottom:22px; }
+.slowlax-plan h3 { margin-block:8px 16px; font-size:25px; }
+.slowlax-plan ul { list-style:none; padding:0; margin-block:25px 30px; }
+.slowlax-plan li { display:flex; align-items:center; gap:10px; margin-block:10px; font-size:13px; }
+.slowlax-plan .button { margin-top:auto; }
+.slowlax-plan.featured { background:#faf4e9; border-color:#dd9933; }
+.slowlax-plan .badge { color:#8d5c13; border-color:#dcb476; margin-bottom:14px; background:transparent; }
+.slowlax-home.home-page .visit-cta { border-radius:12px; }
+.slowlax-home.home-page .visit-cta h2 { font-size:36px; }
+.slowlax-home.home-page .visit-cta .eyebrow { color:#dd9933; }
+.slowlax-home.home-page .visit-cta p { color:#ccc; }
+.slowlax-home.home-page .articles-section { background:#f7f9fa; }
+.slowlax-home .section h2 em { color:#98671d; }
+.slowlax-content-image { width:100%; max-height:400px; object-fit:contain; background:#f7f9fa; border-radius:12px; }
+.slowlax-newsletter { padding:35px; border:1px solid #ddd; border-radius:12px; margin-block:35px; background:#faf4e9; }
+.slowlax-newsletter form { display:flex; gap:12px; margin-top:22px; }
+.slowlax-newsletter input { min-width:0; flex:1; padding:14px; border:1px solid #bbb; border-radius:6px; background:#fff; }
+@media(max-width:1050px) { .header-inner { padding-inline:25px; } .slowlax-brand img { width:140px; } .desktop-nav { gap:17px; } .slowlax-community-inner { gap:45px; } }
+@media(max-width:850px) { .slowlax-hero-content h1 { font-size:42px; } .slowlax-home .slowlax-section-heading { gap:30px; } .slowlax-community-inner { grid-template-columns:.8fr 1.2fr; } }
+@media(max-width:650px) { h1 { font-size:36px; } .slowlax-home.home-page .home-hero-section { min-height:650px; } .slowlax-hero-content { padding-block:52px 40px; } .slowlax-hero-content h1 { font-size:clamp(30px,7.8vw,43px); } .slowlax-hero-content>p { font-size:14px; } .slowlax-hero-image { object-position:62% center; } .slowlax-home .home-hero-section::before { background:linear-gradient(90deg,#000e,#0008),linear-gradient(0deg,#0009,transparent); } .slowlax-kicker { font-size:8px; letter-spacing:.1em; } .hero-assurances { gap:12px; font-size:10px; } .slowlax-hero-foot { font-size:8px; } .slowlax-hero-foot a { font-size:10px; } .slowlax-home .slowlax-section-heading { grid-template-columns:1fr; gap:20px; } .slowlax-home.home-page .section-heading h2 { font-size:30px; } .slowlax-home.home-page .path-card h3 { font-size:24px; } .slowlax-community-inner { grid-template-columns:1fr; padding-block:50px; gap:30px; } .slowlax-community-mark { display:none; } .slowlax-membership-grid { grid-template-columns:1fr; } .slowlax-plan { padding:27px; } .slowlax-home.home-page .visit-cta h2 { font-size:30px; } .slowlax-home.home-page .home-learning-section { padding-top:10px; } .slowlax-newsletter form { flex-direction:column; } .public-site .footer-bottom { gap:15px; } }
+@media(max-width:650px) { .public-site .site-header { height:76px; } .header-inner { width:100%; padding-inline:20px; gap:14px; } .slowlax-brand { flex-shrink:0; } .slowlax-brand img { width:125px; } .public-site .portal-link { padding:9px 11px; font-size:11px; gap:6px; margin-left:auto; } .mobile-toggle { margin-left:0; padding:6px; } .slowlax-plan h2 { font-size:27px; } .prose h2 { font-size:28px; } }
+.inner-page :is(.learning-hero,.journal-heading,.auth-layout) { background:#111; background-image:none; border-radius:12px; }
+.inner-page :is(.learning-hero,.journal-heading,.auth-intro) .eyebrow { color:#dd9933; }
+.inner-page :is(.learning-hero,.journal-heading,.auth-intro) .lead,.inner-page .article-detail-header>.lead { color:#ddd; }
+.inner-page .learning-hero-visual { background:#f6e9d6; color:#926120; border-radius:12px; }
+.inner-page .learning-hero-visual>p { font-size:25px; }
+.inner-page .learning-values { background:#f7f9fa; border-radius:10px; }
+.inner-page .learning-hero .button:hover { background:#ecb052; }
+.membership-price,.membership-file-list a { color:#171717; }
+.membership-hero { background:#111; color:#fff; }
+.public-site .membership-hero>p { color:#ddd; }
+.public-site .membership-hero>.eyebrow,.public-site .membership-hero>.membership-price { color:#dd9933; }
+.membership-period { background:#f6e9d6; color:#926120; }
+.admin-shell .admin-brand small,.admin-shell .admin-user small { color:#bbb; }
+.admin-shell .admin-brand>svg,.portal-brand>svg { color:#dd9933; }
+.inner-page .article-detail-header .small.muted,.inner-page .article-detail-header .small.muted a { color:#ccc; }
+.slowlax-article-art { background:#111; }
+.slowlax-article-art img { width:100%; height:100%; object-fit:contain; }
+.slowlax-newsletter h2 { margin-block:12px 18px; }
+.slowlax-newsletter form+p { margin-top:18px; font-size:11px; }
+.slowlax-newsletter a { text-decoration:underline; text-underline-offset:3px; }

@@ -1,8 +1,0 @@
-.site-header-with-shop .desktop-nav { gap: 19px; }
-.site-header-with-shop .desktop-nav a { white-space: nowrap; }
-.site-header-with-shop .portal-link { flex-shrink: 0; }
-@media (max-width: 1100px) {
-  .site-header-with-shop .desktop-nav { display: none; }
-  .site-header-with-shop .mobile-toggle { display: block; }
-  .site-header-with-shop .portal-link { margin-left: auto; }
-}

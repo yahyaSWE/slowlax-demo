@@ -1,11 +1,21 @@
-# Medlemskap, grupper och abonnemang
+# Slowlax – medlemskap, grupper och abonnemang
 
-Grupper fungerar i den befintliga elevportalen. Ny abonnemangsförsäljning börjar **avstängd**. Databasversion 9 lägger till de nya tabellerna utan att öppna försäljningen eller ändra tidigare kurstillgång, framsteg, bokningar och beställningar.
+Medlemskapssidan visar alltid **Bas medlemskap – Gratis** och alla publicerade betalmedlemskap med publicerat innehåll. Utkast visas bara i admin. Katalogen fungerar även när ny abonnemangsförsäljning är **avstängd**. Källsidans dollarpriser är inte verifierade som aktuella och har inte omvandlats: betalningsmotorn använder SEK. Ange verkliga priser och villkor i admin innan ett erbjudande publiceras.
+
+## Bas – gratis medlemskap
+
+Öppna **Admin → Medlemskap → Bas medlemskap**. Ändra beskrivningen och välj noll, en eller flera grupper. Bas är alltid gratis och synligt på `/medlemskap/bas`; det behöver ingen Stripe-anslutning. Namnet och adressen är reserverade för gratiserbjudandet. Du kan skapa gruppen senare och därefter koppla den här. Publicera gruppen och dess kurser innan den väljs.
+
+Nya elevkonton ansluts automatiskt till Bas. Konto, Bas-medlemskap och eventuell KIT-inbjudan sparas tillsammans. Gruppinnehåll och kurser öppnas först när elevens e-postadress är verifierad. En befintlig elev kan välja **Bli medlem gratis** med sitt verifierade konto. Befintliga elever läggs inte till genom en vanlig inloggning.
+
+Gruppvalen gäller alla Bas-medlemmar, även de som anslöt sig tidigare. En senare tillagd grupp blir därför tillgänglig direkt för verifierade Bas-medlemmar. Om en grupp tas bort försvinner just Bas-åtkomsten; manuella tilldelningar, kursköp och betalda abonnemang fortsätter ge sin egen åtkomst. Att avpublicera en grupp döljer dess innehåll tills den publiceras igen.
+
+När **Admin → Nyhetsbrev** är korrekt konfigurerat köas en automatisk KIT-inbjudan vid anslutningen. Den skickas efter verifierat konto. Eleven bekräftar nyhetsbrevet i KIT:s mejl. Tidigare avregistrerade prenumeranter återaktiveras inte. Upprepade anslutningar skapar inga extra inbjudningar. Medlemskapet fungerar även om KIT är avstängt eller tillfälligt inte svarar. Se [KIT-guiden](kit-setup.md).
 
 ## Förbered innehållet i admin
 
 1. Gå till **Admin → Grupper → Skapa grupp**. Skriv namn och beskrivning och välj kurserna som ska ingå. En grupp kan också innehålla enbart gruppmaterial. Spara som utkast tills du är klar.
-2. Öppna gruppen och välj **Nytt inlägg**. Skriv exempelvis ”Matplan för oktober”, välj en valfri månad och lägg till formaterad text, bilder och dokument. Den visuella editorn kan infoga bilder mellan textstycken. Bildbeskrivningen hjälper elever som använder skärmläsare; bildtexten är valfri.
+2. Öppna gruppen och välj **Nytt inlägg**. Skriv exempelvis ”Månadsuppdatering för oktober”, välj en valfri månad och lägg till formaterad text, bilder och dokument. Den visuella editorn kan infoga bilder mellan textstycken. Bildbeskrivningen hjälper elever som använder skärmläsare; bildtexten är valfri.
 3. Spara och **Förhandsgranska inlägg** eller **Förhandsgranska grupp**. Admin kan granska utkast. Publicera sedan kurserna, gruppen och de inlägg som ska visas.
 4. Under **Tilldela en elev → Välj elev** öppnar du listan över registrerade elever. Sök på namn eller e-postadress och välj eleven. Elever som inte har verifierat sin e-postadress visas men kan inte väljas ännu. Ett slutdatum är valfritt och gäller till slutet av dagen i svensk tid. Tomt slutdatum ger obegränsad manuell gruppåtkomst. En elev kan tillhöra flera grupper.
 5. Under **Admin → Medlemskap → Skapa medlemskap** kopplar du ett månads- eller årspris till gruppen. Momssatsen ska motsvara den tjänst du säljer. Du kan skapa flera erbjudanden för samma grupp, exempelvis månads- och årsbetalning. Erbjudanden kan förberedas som utkast.
@@ -16,7 +26,7 @@ Eleven hittar innehållet under **Mina grupper** och betalningarna under **Mina 
 
 En elev har kursåtkomst genom en separat permanent kurstilldelning, en giltig manuell grupptilldelning eller ett betalt abonnemang. När en källa avslutas kan en annan fortfarande ge åtkomst. Att avsluta ett abonnemang tar aldrig bort en separat permanent kurstillgång eller elevens framsteg.
 
-Gruppmaterial är separat från kursmaterial. En elev med enbart tillgång till den kopplade kursen får inte automatiskt läsa gruppens matplaner eller dokument. Grupp, inlägg, bildreferens och aktuell medlemsåtkomst kontrolleras på servern. Utkast är tillgängliga för admin. Opublicering av gruppen döljer även dess inlägg och gruppbaserade kursåtkomst; separat permanent kursåtkomst finns kvar.
+Gruppmaterial är separat från kursmaterial. En elev med enbart tillgång till den kopplade kursen får inte automatiskt läsa gruppens inlägg eller dokument. Grupp, inlägg, bildreferens och aktuell medlemsåtkomst kontrolleras på servern. Utkast är tillgängliga för admin. Opublicering av gruppen döljer även dess inlägg och gruppbaserade kursåtkomst; separat permanent kursåtkomst finns kvar.
 
 Bilder: JPG, PNG eller WebP, högst 2 MB och 20 olika bilder per inlägg. Servern kontrollerar bildinnehållet, normaliserar till WebP och tar bort källans metadata. Dokument: PDF, DOC eller DOCX, högst 20 MB per fil och 20 bilagor per inlägg.
 
@@ -30,8 +40,8 @@ Manuell gruppåtkomst kräver ingen betalningsanslutning. Automatisk försäljni
 
 | Variabel | Användning |
 | --- | --- |
-| `APP_URL` | Exakt betrodd HTTPS-origin, exempelvis `https://tibbnu.vercel.app` tills den egna domänen fungerar. |
-| `STRIPE_SECRET_KEY` | Verksamhetens hemliga Stripe-nyckel. Samma konto kan användas för bokning, butik och medlemskap. |
+| `APP_URL` | Exakt betrodd HTTPS-origin, exempelvis `https://din-fungerande-doman` tills den egna domänen fungerar. |
+| `STRIPE_SECRET_KEY` | Verksamhetens hemliga Stripe-nyckel. Samma konto kan användas för kursköp och medlemskap. |
 | `MEMBERSHIP_STRIPE_WEBHOOK_SECRET` | Hemligheten för den separata endpointen `/api/medlemskap/webhook`. |
 | `MEMBERSHIP_STRIPE_PORTAL_CONFIGURATION_ID` | ID för en begränsad Stripe Billing-kundportalkonfiguration enligt nedan. |
 
@@ -48,7 +58,7 @@ Skapa en separat webhook för `https://din-fungerande-doman/api/medlemskap/webho
 - `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `customer.subscription.paused`, `customer.subscription.resumed`
 - `charge.refunded`, `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`
 
-Behåll bokningarnas och butikens separata webhooks. Följ [Stripes guide för abonnemangshändelser](https://docs.stripe.com/billing/subscriptions/webhooks).
+Kursköp har en separat webhook på `/api/kurser/webhook`. Följ [Stripes guide för abonnemangshändelser](https://docs.stripe.com/billing/subscriptions/webhooks).
 
 ## Kundportal och uppsägning
 
@@ -60,7 +70,7 @@ Eleven kan öppna portalen från **Mina abonnemang** och hantera sitt betalkort 
 
 Under **Mina abonnemang → Påbörjade betalningar** kan eleven välja **Avbryt påbörjad betalning** innan ett annat erbjudande eller betalningsintervall väljs. Checkout leder också tillbaka hit när eleven avbryter. Kontrollen finns kvar även när erbjudandet är opublicerat eller ny försäljning har stängts. Det avslutar endast elevens väntande betalningsförsök; ett redan tecknat abonnemang avslutas via kundportalen. En slutförd betalning som väntar på bekräftelse visas som under behandling och kan inte avbrytas här.
 
-Se [Stripes kundportalguide](https://docs.stripe.com/customer-management/integrate-customer-portal). Ändrade priser och intervall i Tibb-admin gäller **nya** abonnemang; befintliga abonnemang behåller sina avtalade uppgifter. Efter att en betalning har påbörjats kan erbjudandets grupp inte bytas. Skapa ett nytt erbjudande om en annan grupp ska ingå.
+Se [Stripes kundportalguide](https://docs.stripe.com/customer-management/integrate-customer-portal). Ändrade priser och intervall i Slowlax admin gäller **nya** abonnemang; befintliga abonnemang behåller sina avtalade uppgifter. Efter att en betalning har påbörjats kan erbjudandets grupp inte bytas. Skapa ett nytt erbjudande om en annan grupp ska ingå.
 
 ## Öppna och kontrollera försäljningen
 
@@ -68,6 +78,6 @@ Fyll i verksamhetens kontaktadress, abonnemangsvillkor, publicerad grupp och pub
 
 Testa i Stripe-testmiljön: ett nytt köp, förnyelse, betalningsfel, uppsägning, betald period som löper ut och en återbetalning. Kontrollera att rätt elev får rätt grupp, kurs, quiz och dokument; att en annan elev saknar åtkomst; att utkast är privata; och att en permanent kurstilldelning finns kvar efter avslutat abonnemang.
 
-Avstängd försäljning döljer offentliga erbjudanden och stoppar nya köp. Den **stoppar inte befintliga återkommande betalningar** och tar inte bort giltig medlemsåtkomst. Hantera redan tecknade abonnemang via Stripe även när nya erbjudanden är avstängda.
+Avstängd försäljning stoppar nya köp; de publicerade erbjudandena fortsätter visas. Bas fungerar som vanligt. Växlingen **stoppar inte befintliga återkommande betalningar** och tar inte bort giltig medlemsåtkomst. Hantera redan tecknade abonnemang via Stripe även när nya köp är avstängda.
 
 Implementeringen har verifierats med isolerade lokala databaser och simulerade Stripe/Blob-svar. Skarpa anslutningar behöver konfigureras och leveranstestas på verksamhetens konton innan lansering.

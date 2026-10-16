@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Leaf, LogOut } from "lucide-react";
+import { ArrowUpRight, ChartNoAxesCombined, LogOut } from "lucide-react";
 import { requireAdmin } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
@@ -10,7 +10,7 @@ import "@/components/content-accessibility.css";
 export const dynamic = "force-dynamic";
 export const metadata = {
   ...PRIVATE_METADATA,
-  title: "Administration · Tibb.nu",
+  title: "Administration · Slowlax",
 };
 
 export default async function AdminLayout({
@@ -26,9 +26,9 @@ export default async function AdminLayout({
       </a>
       <aside className="admin-sidebar">
         <Link className="admin-brand" href="/admin">
-          <Leaf size={30} aria-hidden="true" />
+          <ChartNoAxesCombined size={30} aria-hidden="true" />
           <span>
-            Tibb<span className="brand-dot">.nu</span>
+            Slowlax
             <small>ADMINISTRATION</small>
           </span>
         </Link>

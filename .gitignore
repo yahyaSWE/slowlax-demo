@@ -13,3 +13,6 @@ playwright-report/
 test-results/
 .test-data/
 backups/
+output/pdf/
+output/rening/
+tmp/pdfs/

@@ -14,7 +14,7 @@ function SkeletonLines() {
 
 export function RouteLoading({
   title = "Sidan laddas",
-  eyebrow = "Tibb.nu",
+  eyebrow = "Slowlax",
   description = "Innehållet visas strax.",
   variant = "public",
 }: {

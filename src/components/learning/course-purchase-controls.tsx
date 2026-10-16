@@ -7,8 +7,9 @@ import { usePathname, useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 import { checkoutDestination } from "@/components/shop/cart-data";
 
-export function CoursePurchaseButton({ courseId, courseRevision, settingsRevision, priceLabel }: {
+export function CoursePurchaseButton({ courseId, courseRevision, settingsRevision, priceLabel, isBundle = false, purificationRevision = null }: {
   courseId: number; courseRevision: string; settingsRevision: string; priceLabel: string;
+  isBundle?: boolean; purificationRevision?: string | null;
 }) {
   const [consent, setConsent] = useState(false);
   const [pending, setPending] = useState(false);
@@ -21,7 +22,7 @@ export function CoursePurchaseButton({ courseId, courseRevision, settingsRevisio
     try {
       const response = await fetch("/api/kurser/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseId, consent: true, courseRevision, settingsRevision, termsRevision: settingsRevision }),
+        body: JSON.stringify({ courseId, consent: true, courseRevision, settingsRevision, termsRevision: settingsRevision, purificationRevision }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Betalningen kunde inte öppnas.");
@@ -37,9 +38,9 @@ export function CoursePurchaseButton({ courseId, courseRevision, settingsRevisio
     <label className="form-check course-purchase-consent"><input type="checkbox" required checked={consent} disabled={pending} onChange={event => setConsent(event.target.checked)} /><span>Jag godkänner köpvillkoren och begär att få kursåtkomst direkt efter betalningen.</span></label>
     {error && <p className="notice notice-error" role="alert">{error}</p>}
     <button type="submit" className="button button-primary full-width" disabled={pending || !consent}>
-      {pending ? <><LoaderCircle size={17} className="admin-submit-spinner" aria-hidden="true" />Öppnar betalningen…</> : `Köp kursen – ${priceLabel}`}
+      {pending ? <><LoaderCircle size={17} className="admin-submit-spinner" aria-hidden="true" />Öppnar betalningen…</> : `Köp ${isBundle ? "paketet" : "kursen"} – ${priceLabel}`}
     </button>
-    <p className="small muted">Engångsbetalning. Kursen visas i din elevportal när betalningen har bekräftats.</p>
+    <p className="small muted">Engångsbetalning. {isBundle ? "Kurserna och grupperna" : "Kursen"} visas i din elevportal när betalningen har bekräftats.</p>
   </form>;
 }
 

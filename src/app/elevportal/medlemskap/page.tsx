@@ -1,27 +1,32 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getMembershipSettings } from "@/lib/memberships";
+import { getPublicFreeMembership, getStudentFreeMembership } from "@/lib/free-membership-domain";
 import { getUserPendingCheckouts, getUserSubscriptions, membershipPortalReady } from "@/lib/membership-billing";
 import { formatMoney } from "@/lib/time";
 import { SubscriptionList } from "@/components/memberships/subscription-list";
 import { MembershipCheckoutCancelButton, MembershipPortalButton, MembershipStatusRefreshButton } from "@/components/memberships/billing-controls";
+import { StudentFreeMembershipCard } from "@/components/memberships/free-membership";
 
-export default async function PortalMembershipsPage() {
+export default async function PortalMembershipsPage({ searchParams }: { searchParams: Promise<{ success?: string }> }) {
   const user = await requireUser();
   const verifiedStudent = user.role === "student" && !!user.emailVerifiedAt;
-  const [subscriptions, settings, checkouts] = await Promise.all([
+  const [subscriptions, checkouts, freeOffer, freeMembership, query] = await Promise.all([
     getUserSubscriptions(user.id),
-    getMembershipSettings(),
     verifiedStudent ? getUserPendingCheckouts(user.id) : Promise.resolve([]),
+    getPublicFreeMembership(),
+    user.role === "student" ? getStudentFreeMembership(user.id) : Promise.resolve(null),
+    searchParams,
   ]);
 
   return (
     <>
       <Link href="/elevportal/konto" className="back-link">Till mitt konto</Link>
       <header className="membership-hero">
-        <h1 className="page-title">Mina abonnemang</h1>
-        <p>Se betalningsstatus och hantera dina återkommande medlemskap.</p>
+        <h1 className="page-title">Mina medlemskap</h1>
+        <p>Ditt kostnadsfria Bas-medlemskap och dina betalda abonnemang.</p>
       </header>
+      {typeof query.success === "string" && <p className="notice notice-success" role="status">{query.success.slice(0, 500)}</p>}
+      {freeMembership && <StudentFreeMembershipCard offer={freeOffer} membership={freeMembership} />}
       {user.role === "student" && !verifiedStudent && (
         <p className="notice">
           Verifiera din e-postadress för att hantera medlemskap och betalningar. {" "}
@@ -31,7 +36,7 @@ export default async function PortalMembershipsPage() {
       {subscriptions.length > 0 && verifiedStudent && (
         membershipPortalReady() ? <MembershipPortalButton /> : (
           <p className="notice">
-            Betalningsportalen är inte tillgänglig just nu. Kontakta Tibb.nu för
+            Betalningsportalen är inte tillgänglig just nu. Kontakta Slowlax för
             hjälp med ditt abonnemang.
           </p>
         )
@@ -56,11 +61,12 @@ export default async function PortalMembershipsPage() {
         </section>
       )}
       <section className="section">
+        <h2>Betalda abonnemang</h2>
         <SubscriptionList subscriptions={subscriptions} />
       </section>
       <div className="membership-actions">
         <Link href="/elevportal/grupper" className="button button-secondary">Mina grupper</Link>
-        {settings.salesEnabled && <Link href="/medlemskap" className="text-link">Utforska medlemskap</Link>}
+        <Link href="/medlemskap" className="text-link">Utforska medlemskap</Link>
       </div>
     </>
   );

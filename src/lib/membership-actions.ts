@@ -33,7 +33,7 @@ export async function savePlanAction(_state: ContentActionState<PlanFields>, for
   const user = await requireAdmin(), values = planFields(form);
   const oldId = field(form,"id") ? idField(form) : undefined;
   let id;
-  try { id = await membership.savePlan(user.id,oldId,{...values,groupId:Number(values.groupId),priceOre:money(values.price),vatPercent:Number(values.vatPercent) as 0|6|12|25,interval:values.interval as "month"|"year",expectedUpdatedAt:oldId?values.expectedUpdatedAt:undefined}); }
+  try { id = await membership.savePlan(user.id,oldId,{...values,groupId:Number(values.groupId),groupIds:values.groupIds.map(Number),priceOre:money(values.price),vatPercent:Number(values.vatPercent) as 0|6|12|25,interval:values.interval as "month"|"year",expectedUpdatedAt:oldId?values.expectedUpdatedAt:undefined}); }
   catch(error) { return {error:message(error),values}; }
   saved(`/admin/medlemskap/${id}`,`plan-${oldId ?? "new"}`);
 }

@@ -4,6 +4,10 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
   output: process.env.VERCEL ? undefined : "standalone",
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/api/diplom/*": ["./src/assets/certificates/**/*"],
+    "/elevportal/**": ["./src/assets/certificates/**/*"],
+  },
   async headers() {
     return [
       {

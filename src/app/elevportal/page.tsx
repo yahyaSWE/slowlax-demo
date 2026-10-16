@@ -85,7 +85,7 @@ export default async function StudentPortalPage({
           <BookOpen size={38} strokeWidth={1.2} />
           <h2>Din kunskapsresa börjar här</h2>
           <p className="muted">
-            Du har inga kurser ännu. Kurser visas här efter ett bekräftat köp eller när Tibb.nu har tilldelat dig tillgång.
+            Du har inga kurser ännu. Kurser visas här efter ett bekräftat köp eller när Slowlax har tilldelat dig tillgång.
           </p>
           <Link className="button button-primary" href="/kurser">
             Utforska våra kurser <ArrowUpRight size={17} />

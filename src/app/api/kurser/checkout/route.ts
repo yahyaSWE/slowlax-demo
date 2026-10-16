@@ -5,7 +5,7 @@ import { assertCoursePurchaseOrigin, createCoursePurchaseCheckout, CoursePurchas
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const inputSchema = z.object({ courseId: z.number().int().positive(), consent: z.literal(true),
-  courseRevision: z.string().min(1).max(100), settingsRevision: z.string().min(1).max(100), termsRevision: z.string().min(1).max(100) }).strict();
+  courseRevision: z.string().min(1).max(100), settingsRevision: z.string().min(1).max(100), termsRevision: z.string().min(1).max(100), purificationRevision:z.iso.datetime().nullable().optional() }).strict();
 export async function POST(request: Request) {
   try {
     assertCoursePurchaseOrigin(request);

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { StudentAccessState } from "@/lib/student-access";
 import { formatDateTime } from "@/lib/time";
 
-const sourceLabels = { manual: "Tilldelad av Tibb.nu", subscription: "Abonnemang", course_purchase: "Kursköp" };
+const sourceLabels = { manual: "Tilldelad av Slowlax", subscription: "Abonnemang", course_purchase: "Kursköp", free_membership: "Bas medlemskap" };
 
 export function StudentAccessDetails({ access }: { access: StudentAccessState }) {
   return <div className="small">

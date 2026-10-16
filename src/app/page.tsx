@@ -1,272 +1,62 @@
 import Link from "next/link";
 import Image from "next/image";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  BookOpen,
-  CalendarDays,
-  Leaf,
-  MoveUpRight,
-  Sprout,
-} from "lucide-react";
-import { getArticles, getCourses, getTreatments } from "@/lib/db";
+import { ArrowRight, ArrowUpRight, BookOpen, Check, ChartNoAxesCombined, ShieldCheck, Users, Sparkles } from "lucide-react";
+import { getArticles, getCourses } from "@/lib/db";
 import { getSiteSettings } from "@/lib/site-data";
 import { JsonLd } from "@/components/seo/json-ld";
+import { CourseCard, ArticleCard } from "@/components/learning/cards";
+import { NewsletterSignup } from "@/components/newsletter-signup";
 import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
 import "./home.css";
 
 export const metadata = createPageMetadata({
-  title: "Traditionell kinesisk medicin i Jönköping | Tibb.nu", path: "/",
-  description: "Behandlingar i Jönköping hos Tibb.nu. Klassisk kinesisk medicin i ljuset av profetisk vägledning. Boka behandling, läs artiklar och utforska våra kurser.",
+  title: "Slowlax | Investera med dina värderingar", path: "/",
+  description: "Lär dig hur du bygger en halal aktieportfölj, filtrerar bort icke tillåtna bolag och investerar långsiktigt – steg för steg.",
 });
 
 export default async function HomePage() {
-  const [allCourses, allArticles, treatments, settings] = await Promise.all([
-    getCourses({ publishedOnly: true }),
-    getArticles({ publishedOnly: true }),
-    getTreatments({ activeOnly: true }),
-    getSiteSettings(),
+  const [courses, articles, settings] = await Promise.all([
+    getCourses({ publishedOnly: true }), getArticles({ publishedOnly: true }), getSiteSettings(),
   ]);
-  const courses = allCourses.slice(0, 2);
-  const articles = allArticles.slice(0, 3);
   return (
-    <div className="home-page">
+    <div className="home-page slowlax-home">
       <JsonLd id="website-data" data={[
         buildOrganizationSchema(settings),
-        { "@context": "https://schema.org", "@type": "WebSite", "@id": websiteId(),
-          name: "Tibb.nu", url: absoluteUrl("/"), inLanguage: "sv-SE", publisher: { "@id": organizationId() } },
+        { "@context": "https://schema.org", "@type": "WebSite", "@id": websiteId(), name: "Slowlax", url: absoluteUrl("/"), inLanguage: "sv-SE", publisher: { "@id": organizationId() } },
       ]} />
       <section className="home-hero-section">
-        <div className="home-hero container">
-          <div className="hero-copy">
-            <h1>Traditionell medicin och behandlingar</h1>
-            <p className="hero-intro">
-              Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.
-            </p>
-            <p className="hero-description">
-              Behandlingar i Jönköping hos Johan Yahya Blomdahl. Här möts
-              traditionell kunskap, personliga möten och lärande.
-            </p>
-            <div className="hero-actions">
-              <Link href="/boka" className="button button-primary">
-                Boka en behandling <ArrowUpRight size={18} />
-              </Link>
-              <Link href="/kurser" className="text-link">
-                Utforska våra kurser <ArrowRight size={17} />
-              </Link>
-            </div>
+        <Image src="/images/slowlax-hero-lecture.jpeg" alt="" fill priority sizes="100vw" className="slowlax-hero-image" />
+        <div className="container slowlax-hero-content">
+          <span className="slowlax-kicker"><span /> KUNSKAP FÖR EN MEDVETEN FRAMTID</span>
+          <h1>Investera i aktier –<br />utan att kompromissa<br />med <em>dina värderingar.</em></h1>
+          <p>Lär dig hur du bygger en halal aktieportfölj, filtrerar bort icke tillåtna bolag och investerar långsiktigt – steg för steg.</p>
+          <div className="hero-actions">
+            <Link href="/kurser" className="button button-primary">Utforska våra kurser <ArrowUpRight size={18} /></Link>
+            <Link href="/om" className="text-link">Lär känna Slowlax <ArrowRight size={17} /></Link>
           </div>
-          <div className="hero-image-stage">
-            <div className="hero-image-wrap">
-              <Image
-                src="/images/olive-still-life.png"
-                alt="Olivkvistar i en handgjord keramikvas i varmt solljus"
-                fill
-                priority
-                sizes="(max-width: 650px) calc(100vw - 48px), (max-width: 850px) 44vw, 470px"
-                className="hero-image"
-              />
-            </div>
-          </div>
+          <div className="hero-assurances"><span><Check size={15} /> Inga förkunskaper krävs</span><span><Check size={15} /> Lär i din egen takt</span></div>
         </div>
       </section>
-      <section className="section container paths-section">
-        <div className="section-heading">
-          <div>
-            <h2>Våra tjänster</h2>
-          </div>
-        </div>
+      <section id="varfor" className="section container paths-section">
+        <div className="slowlax-section-heading"><div><p className="eyebrow">DINA PENGAR. DINA PRINCIPER.</p><h2>Varför välja halal och<br /><em>etiska investeringar?</em></h2></div></div>
         <div className="paths-grid">
-          <Link href="/boka" className="path-card">
-            <span className="path-number">01</span>
-            <span className="path-icon">
-              <Leaf size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Behandlingar</h3>
-            <p>
-              Ett möte med utrymme för dig. Läs om våra behandlingar och hitta
-              en tid som passar.
-            </p>
-            <span className="path-card-bottom">
-              {treatments.length
-                ? `${treatments.length} behandlingar att utforska`
-                : "Se tillgängliga behandlingar"}
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
-          <Link href="/kurser" className="path-card">
-            <span className="path-number">02</span>
-            <span className="path-icon">
-              <BookOpen size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Kurser & lärande</h3>
-            <p>
-              Fördjupa din kunskap i din egen takt. Samla lektioner,
-              reflektioner och material i elevportalen.
-            </p>
-            <span className="path-card-bottom">
-              Upptäck våra kurser
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
-          <Link href="/artiklar" className="path-card">
-            <span className="path-number">03</span>
-            <span className="path-icon">
-              <Sprout size={26} strokeWidth={1.2} />
-            </span>
-            <h3>Kunskap & inspiration</h3>
-            <p>
-              Perspektiv på tradition, vardag och eftertanke. Ta del av våra
-              senaste artiklar.
-            </p>
-            <span className="path-card-bottom">
-              Läs och reflektera
-              <MoveUpRight size={20} />
-            </span>
-          </Link>
+          {[
+            { Icon: ChartNoAxesCombined, title: "Värderingar som grund", text: "Investera i företag som är i linje med islamiska och etiska principer.", href: "/investeringsfilosofi", label: "Vår investeringsfilosofi" },
+            { Icon: ShieldCheck, title: "Medvetna val", text: "Lär dig att filtrera bort icke tillåtna bolag och förstå principerna bakom en halal aktieportfölj.", href: "/kurser", label: "Bygg din kunskap" },
+            { Icon: Users, title: "Positiv social påverkan", text: "Låt dina värderingar vägleda vilka företag du stödjer. Vi tror på samarbete, utbildning och kunskapsdelning.", href: "/om", label: "Upptäck vår gemenskap" },
+          ].map(({ Icon, title, text, href, label }, index) => <Link href={href} className="path-card" key={title}><span className="path-number">0{index + 1}</span><span className="path-icon"><Icon size={27} strokeWidth={1.5} /></span><h3>{title}</h3><p>{text}</p><span className="path-card-bottom">{label}<ArrowUpRight size={18} /></span></Link>)}
         </div>
       </section>
-      <section className="philosophy-section">
-        <div className="container philosophy-inner">
-          <div className="botanical-motif" aria-hidden="true">
-            <svg viewBox="0 0 180 220" fill="none">
-              <path
-                d="M48 200C96 140 100 84 153 20"
-                stroke="currentColor"
-                strokeWidth="2"
-              />
-              <path
-                d="M80 155C34 158 26 137 25 102c43 8 60 26 55 53ZM102 111C62 116 57 91 62 58c35 11 48 25 40 53ZM127 65C106 31 113 11 142 0c12 29 9 47-15 65ZM90 132c40-12 62 0 66 28-36 13-58 5-66-28ZM113 90c38-21 61-14 68 16-31 20-57 15-68-16Z"
-                fill="currentColor"
-              />
-            </svg>
-          </div>
-          <div>
-            <h2>
-              Två klassiska traditioner
-              <br />
-              <em>med årtusenden av kunskap</em>
-            </h2>
-          </div>
-          <div className="philosophy-copy">
-            <p>
-              Vi utforskar klassisk kinesisk medicin i ljuset av den Profetiska
-              vägledningen, med respekt för traditionernas ursprung och för
-              varje människas berättelse.
-            </p>
-            <Link href="/om" className="text-link">
-              Läs mer om Tibb.nu <ArrowRight size={18} />
-            </Link>
-          </div>
-        </div>
+      <section className="section container home-learning-section" id="kurser">
+        <div className="section-heading"><div><p className="eyebrow">ETT STEG I TAGET</p><h2>Kunskap som tar<br /><em>dig framåt.</em></h2></div><Link href="/kurser" className="text-link">Se alla kurser <ArrowRight size={18} /></Link></div>
+        <p className="slowlax-section-intro">Oavsett om du precis har börjat eller vill förbättra dina färdigheter, utforska våra kurser i etiska och halalinvesteringar.</p>
+        {courses.length ? <div className="card-grid">{courses.slice(0, 3).map((course, index) => <CourseCard key={course.id} course={course} index={index} />)}</div> : <div className="empty-state"><BookOpen /><h3>Våra kurser</h3><p>Kurserna visas här när de publicerats.</p></div>}
       </section>
-      <section className="section container home-learning-section">
-        <div className="section-heading">
-          <div>
-            <h2>Lärande som får växa.</h2>
-          </div>
-          <Link href="/kurser" className="text-link">
-            Alla kurser <ArrowRight size={18} />
-          </Link>
-        </div>
-        {courses.length ? (
-          <div className="home-courses-grid">
-            {courses.map((course, index) => (
-              <Link
-                key={course.id}
-                href={`/kurser/${course.slug}`}
-                className={`home-course course-tone-${index}`}
-              >
-                <div className="home-course-art">
-                  <span className="eyebrow">TIBB AKADEMI</span>
-                  {index === 0 ? (
-                    <Sprout strokeWidth={0.65} />
-                  ) : (
-                    <BookOpen strokeWidth={0.65} />
-                  )}
-                  <span className="course-art-bottom">
-                    KUNSKAP · REFLEKTION · FÖRDJUPNING
-                  </span>
-                </div>
-                <div className="home-course-copy">
-                  <span className="badge">Onlinekurs</span>
-                  <h3>{course.title}</h3>
-                  <p>{course.description}</p>
-                  <span className="text-link">
-                    Läs om kursen <ArrowUpRight size={17} />
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <BookOpen />
-            <h3>Nya kurser är på väg.</h3>
-            <p>Här hittar du kurserna när de är publicerade.</p>
-          </div>
-        )}
-      </section>
-      <section className="articles-section section">
-        <div className="container">
-          <div className="section-heading">
-            <div>
-              <h2>Från vår kunskapsbank.</h2>
-            </div>
-            <Link href="/artiklar" className="text-link">
-              Alla artiklar <ArrowRight size={18} />
-            </Link>
-          </div>
-          <div className="home-articles-grid">
-            {articles.map((article, index) => (
-              <Link
-                href={`/artiklar/${article.slug}`}
-                className="home-article"
-                key={article.id}
-              >
-                <div className={`article-art article-art-${index}`}>
-                  <span>
-                    {index === 0 ? (
-                      <Leaf strokeWidth={0.8} />
-                    ) : index === 1 ? (
-                      <Sprout strokeWidth={0.8} />
-                    ) : (
-                      <BookOpen strokeWidth={0.8} />
-                    )}
-                  </span>
-                </div>
-                <span className="eyebrow">{"Kunskap & reflektion"}</span>
-                <h3>{article.title}</h3>
-                <p>{article.excerpt}</p>
-                <span className="text-link">
-                  Läs artikeln <ArrowUpRight size={16} />
-                </span>
-              </Link>
-            ))}
-          </div>
-          {!articles.length && (
-            <p className="empty-state">Artiklar publiceras här inom kort.</p>
-          )}
-        </div>
-      </section>
-      <section className="section container">
-        <div className="section-heading">
-          <div><h2>Inför ditt besök</h2></div>
-          <Link href="/vanliga-fragor" className="text-link">Vanliga frågor <ArrowRight size={18} /></Link>
-        </div>
-        <p>Välj behandling och behandlare, sedan ett ledigt datum och en tid. Pris och behandlingens längd visas innan du bekräftar bokningen.</p>
-        <p>Läs om <Link href="/om">Johan Yahya Blomdahls bakgrund och utbildningar</Link> eller <Link href="/kontakt">kontakta oss</Link> om du har frågor inför ditt besök i Jönköping.</p>
-      </section>
-      <section className="visit-cta container">
-        <div>
-          <span className="eyebrow">ETT FÖRSTA STEG</span>
-          <h2>Boka behandling</h2>
-          <p>Se våra behandlingar och hitta en tid för ett personligt möte.</p>
-        </div>
-        <Link href="/boka" className="button button-primary">
-          <CalendarDays size={18} /> Hitta din tid <ArrowUpRight size={18} />
-        </Link>
-      </section>
+      <section className="slowlax-community"><div className="container slowlax-community-inner"><div className="slowlax-community-mark" aria-hidden="true"><ChartNoAxesCombined size={110} strokeWidth={0.8} /><span>SLOW THINKING.<br />LONG TERM.</span></div><div><p className="eyebrow">VÅR GEMENSKAP</p><h2>Mer än siffror<br /><em>på en skärm.</em></h2><p>Vi tror att investeringar är mer än bara siffror på en skärm – det handlar om att förbättra liv och bygga starka ekonomiska grunder.</p><p>Genom samarbete, utbildning och kunskapsdelning strävar vi efter att skapa en inkluderande gemenskap av ansvarsfulla investerare.</p><Link href="/registrera" className="button button-primary">Gå med i gemenskapen <ArrowUpRight size={18} /></Link></div></div></section>
+      <section className="section container slowlax-memberships"><div className="section-heading"><div><p className="eyebrow">LÄR OCH UTVECKLAS TILLSAMMANS</p><h2>Välj din väg.</h2></div><Link href="/medlemskap" className="text-link">Om medlemskap <ArrowRight size={18} /></Link></div><div className="slowlax-membership-grid"><div className="slowlax-plan"><Users size={25} /><h3>Bas medlemskap</h3><p>En första kontakt med vår gemenskap.</p><ul><li><Check size={17} /> Gratis medlemskap</li><li><Check size={17} /> Communityuppdateringar</li></ul><Link href="/registrera" className="button button-secondary">Skapa ditt konto <ArrowUpRight size={17} /></Link></div><div className="slowlax-plan featured"><span className="badge"><Sparkles size={13} /> FÖRDJUPA DITT LÄRANDE</span><h3>Premium medlemskap</h3><p>För dig som vill fortsätta utveckla dina kunskaper.</p><ul><li><Check size={17} /> Tillgång till tillgängliga kurser enligt medlemskapet</li><li><Check size={17} /> Exklusiva uppdateringar</li></ul><Link href="/medlemskap" className="button button-primary">Utforska Premium <ArrowUpRight size={17} /></Link></div></div></section>
+      {articles.length > 0 && <section className="articles-section section"><div className="container"><div className="section-heading"><div><p className="eyebrow">NYHETER & INSPIRATION</p><h2>Från vår kunskapsbank.</h2></div><Link href="/artiklar" className="text-link">Alla artiklar <ArrowRight size={18} /></Link></div><div className="card-grid">{articles.slice(0, 3).map((article, index) => <ArticleCard key={article.id} article={article} index={index} />)}</div></div></section>}
+      <NewsletterSignup />
+      <section className="visit-cta container"><div><span className="eyebrow">DIN VÄG TILL ETISKA INVESTERINGAR</span><h2>Börja med kunskap.</h2><p>Lär dig principerna för halalfinansiering, i din egen takt.</p></div><Link href="/kurser" className="button button-primary">Hitta din kurs <ArrowUpRight size={18} /></Link></section>
     </div>
   );
 }

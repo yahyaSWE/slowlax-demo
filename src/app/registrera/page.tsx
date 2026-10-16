@@ -7,6 +7,7 @@ import { signupAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { accountAuthHref, safeAccountReturnTo } from "@/lib/account-return";
 import { resolveAccountReturnTo } from "@/lib/account-return-destination";
+import { getKitSignupNotice } from "@/lib/kit-newsletter";
 
 export const metadata: Metadata = { ...PRIVATE_METADATA, title: "Skapa konto" };
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function SignupPage({
   const [user, params] = await Promise.all([getCurrentUser(), searchParams]);
   const returnTo = safeAccountReturnTo(params.returnTo, "");
   if (user) redirect(await resolveAccountReturnTo(returnTo, user.role === "admin" ? "/admin" : "/elevportal"));
+  const newsletter = await getKitSignupNotice();
   return (
     <section className="section container auth-layout">
       <div className="auth-intro">
@@ -29,8 +31,9 @@ export default async function SignupPage({
           <em>växa.</em>
         </h1>
         <p className="lead muted">
-          Skapa ditt konto och verifiera din e-postadress. Köpta kurser och
-          kurser eller grupper som du tilldelats samlas sedan i elevportalen.
+          Skapa ett elevkonto och få Bas medlemskap kostnadsfritt. Verifiera
+          din e-postadress för att öppna innehållet som ingår. Dina kurser och
+          grupper samlas sedan i elevportalen.
         </p>
         <Sprout
           className="auth-leaf"
@@ -90,6 +93,7 @@ export default async function SignupPage({
             Kurser med onlineköp blir tillgängliga efter bekräftad betalning.
             Du kan också få tillgång genom tilldelning eller en grupp.
           </p>
+          {newsletter.enabled && <p className="small muted">{newsletter.message} <Link href="/integritet" className="inline-link">Om dina personuppgifter</Link>.</p>}
           <button className="button button-primary full-width" type="submit">
             Skapa konto <ArrowRight size={17} />
           </button>

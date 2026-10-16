@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CreditCard, ShoppingBag } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { AccountProfileForms } from "@/components/auth/account-profile-forms";
 
 export default async function StudentAccountPage() {
   const user = await requireUser();
@@ -17,10 +18,11 @@ export default async function StudentAccountPage() {
       <section className="panel"><h2>Köp och abonnemang</h2><p className="muted">Engångsköp av kurser och återkommande betalningar visas separat.</p>
         <div className="portal-account-links">
           <Link href="/elevportal/kop" className="button button-secondary"><ShoppingBag size={17} aria-hidden="true" /> Mina köp</Link>
-          <Link href="/elevportal/medlemskap" className="button button-secondary"><CreditCard size={17} aria-hidden="true" /> Mina abonnemang</Link>
+          <Link href="/elevportal/medlemskap" className="button button-secondary"><CreditCard size={17} aria-hidden="true" /> Mina medlemskap</Link>
         </div>
       </section>
     </div>
-    <section className="panel"><h2>Behöver du hjälp?</h2><p className="muted">Kontakta oss om ditt konto, betalningar eller kursåtkomst.</p><div className="membership-actions"><Link href="/kontakt" className="button button-primary">Kontakta Tibb.nu</Link><Link href="/kurser" className="text-link">Utforska fler kurser</Link></div></section>
+    <AccountProfileForms name={user.name} />
+    <section className="panel"><h2>Behöver du hjälp?</h2><p className="muted">Kontakta oss om ditt konto, betalningar eller kursåtkomst.</p><div className="membership-actions"><Link href="/kontakt" className="button button-primary">Kontakta Slowlax</Link><Link href="/kurser" className="text-link">Utforska fler kurser</Link></div></section>
   </>;
 }

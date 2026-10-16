@@ -47,6 +47,8 @@ before(async () => {
       const db = getDb();
       try {
         await db.initialize();
+        await db.prepare('DELETE FROM articles').run();
+        await db.prepare('DELETE FROM courses').run();
         const date = '2026-05-01T10:11:12.000Z';
         const truncatedSlug = slug('', 'a'.repeat(99) + ' b');
         for (const [id, title, slug, published, updated] of [
@@ -67,6 +69,17 @@ before(async () => {
         ]) {
           await db.prepare('INSERT INTO courses(id,title,slug,description,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?)')
             .run(id, title, slug, 'PRIVATE_COURSE_DESCRIPTION', published, date, date);
+        }
+        for (const [id, title, slug, published, secondCourseId] of [
+          [2000, 'Öppet kurspaket', 'public-bundle', 1, 1002],
+          [2001, 'SECRET_DRAFT_BUNDLE', 'draft-bundle', 0, 1002],
+          [2002, 'SECRET_UNPUBLISHED_CHILD', 'hidden-child-bundle', 1, 1001],
+        ]) {
+          await db.prepare('INSERT INTO courses(id,title,slug,description,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?)')
+            .run(id, title, slug, 'PRIVATE_BUNDLE_DESCRIPTION', published, date, date);
+          await db.prepare('INSERT INTO course_bundles(course_id) VALUES(?)').run(id);
+          await db.prepare('INSERT INTO course_bundle_courses(bundle_course_id,course_id) VALUES(?,?)').run(id, 1000);
+          await db.prepare('INSERT INTO course_bundle_courses(bundle_course_id,course_id) VALUES(?,?)').run(id, secondCourseId);
         }
         await db.prepare('INSERT INTO lessons(id,course_id,title,body,video_url,material_url) VALUES(?,?,?,?,?,?)')
           .run(1000, 1000, 'Privat lektionsrubrik', 'PRIVATE_LESSON_BODY', 'https://private.example.test/video', 'https://private.example.test/material');
@@ -118,7 +131,8 @@ after(async () => {
 test("the production sitemap discovers only canonical public pages and currently published content", () => {
   const urls = results.production.sitemap.map((entry) => entry.url);
   const expected = results.pages.map((path) => new URL(path, "https://tibbnu.vercel.app").href);
-  expected.push("https://tibbnu.vercel.app/artiklar/public-article", "https://tibbnu.vercel.app/artiklar/invalid-date", "https://tibbnu.vercel.app/artiklar/invalid-calendar-date", `https://tibbnu.vercel.app/artiklar/${truncatedSlug}`, "https://tibbnu.vercel.app/kurser/public-course", `https://tibbnu.vercel.app/kurser/${truncatedSlug}`);
+  expected.push("https://tibbnu.vercel.app/medlemskap/bas");
+  expected.push("https://tibbnu.vercel.app/artiklar/public-article", "https://tibbnu.vercel.app/artiklar/invalid-date", "https://tibbnu.vercel.app/artiklar/invalid-calendar-date", `https://tibbnu.vercel.app/artiklar/${truncatedSlug}`, "https://tibbnu.vercel.app/kurser/public-course", `https://tibbnu.vercel.app/kurser/${truncatedSlug}`, "https://tibbnu.vercel.app/paket/public-bundle");
   assert.deepEqual(urls.toSorted(), expected.toSorted());
   assert.equal(new Set(urls).size, urls.length);
   assert.ok(urls.every((url) => new URL(url).origin === "https://tibbnu.vercel.app" && !new URL(url).search));
@@ -127,12 +141,24 @@ test("the production sitemap discovers only canonical public pages and currently
 
 test("sitemap dates come from valid saved update dates and are omitted for static pages and invalid dates", () => {
   for (const entry of results.production.sitemap) {
-    if (/\/(public-article|public-course)$/.test(entry.url) || entry.url.endsWith(`/${truncatedSlug}`)) {
+    if (/\/(public-article|public-course|public-bundle)$/.test(entry.url) || entry.url.endsWith(`/${truncatedSlug}`)) {
       assert.equal(entry.lastModified, "2026-05-01T10:11:12.000Z");
+    } else if (entry.url.endsWith("/medlemskap/bas")) {
+      assert.ok(entry.lastModified && Number.isFinite(Date.parse(entry.lastModified)));
     } else {
       assert.equal(Object.hasOwn(entry, "lastModified"), false, entry.url);
     }
   }
+});
+
+test("published packages use package URLs and drafts or unpublished contents remain private", () => {
+  assert.ok(results.production.llms.text.includes("https://tibbnu.vercel.app/paket/public-bundle"));
+  for (const snapshot of [results.production, results.unpublished]) {
+    const serialized = JSON.stringify(snapshot);
+    assert.doesNotMatch(serialized, /\/kurser\/public-bundle|draft-bundle|hidden-child-bundle|SECRET_DRAFT_BUNDLE|SECRET_UNPUBLISHED_CHILD/);
+  }
+  assert.ok(!results.unpublished.sitemap.some(entry => entry.url.endsWith("/paket/public-bundle")));
+  assert.ok(!results.unpublished.llms.text.includes("/paket/public-bundle"));
 });
 
 test("specific AI search crawler groups retain every private and query exclusion from the wildcard group", () => {

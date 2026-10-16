@@ -34,6 +34,8 @@ import { getCourseInformation } from "@/lib/business-settings";
 import { CourseInformationForm } from "@/components/admin/course-information-form";
 import { getAdminCoursePurchases } from "@/lib/course-purchase-billing";
 import { CoursePurchasesList } from "@/components/learning/course-purchases-list";
+import { CourseCertificateForm } from "@/components/admin/course-certificate-form";
+import { getCourseCertificateSettings } from "@/lib/course-certificates";
 import "@/components/admin/course-activities.css";
 
 export default async function CourseBuilderPage({
@@ -50,7 +52,7 @@ export default async function CourseBuilderPage({
   const course = await getCourseById(courseId);
   if (!course) notFound();
   const information = await getCourseInformation(course);
-  const [lessons, allEnrollments, activities, results, sales, groups, purchases] = await Promise.all([
+  const [lessons, allEnrollments, activities, results, sales, groups, purchases, certificateSettings] = await Promise.all([
     getLessons(course.id),
     getEnrollments(),
     getAdminCourseActivities(user.id, course.id),
@@ -58,6 +60,7 @@ export default async function CourseBuilderPage({
     getCourseSalesSettings(course.id),
     getAdminGroups(user.id),
     getAdminCoursePurchases(user.id, course.id),
+    getCourseCertificateSettings(course.id),
   ]);
   const enrollments = allEnrollments.filter((e) => e.courseId === course.id);
   const studentCount = new Set([...enrollments.map(e => e.email), ...purchases.filter(p => !p.revoked).map(p => p.email)]).size;
@@ -92,6 +95,7 @@ export default async function CourseBuilderPage({
           <CourseForm course={course} returnTo={returnTo} />
         </section>
         <CourseInformationForm courseId={course.id} information={information} />
+        <CourseCertificateForm settings={certificateSettings} />
         <section className="panel form-panel">
           <SectionHeading title="Försäljning och grupp efter köp" />
           <CourseSalesForm settings={sales} groups={groups} stripeReady={stripeReady()} />

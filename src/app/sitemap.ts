@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 import { databaseConfigured } from "@/lib/database-config";
 import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES, toIsoDate } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
-import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
 import { getPublicPlans } from "@/lib/memberships";
+import { getPublicFreeMembership } from "@/lib/free-membership-domain";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const [prefix, records] of [
     ["/artiklar/", content.articles],
     ["/kurser/", content.courses],
+    ["/paket/", content.bundles],
   ] as const) {
     for (const record of records) {
       // CMS truncation can leave a final hyphen. It is still a safe, existing
@@ -48,6 +49,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
 
   const seen = new Set<string>();
+  const freeMembership = await getPublicFreeMembership();
+  const freeUpdated = toIsoDate(freeMembership.updatedAt);
+  entries.push({url:absoluteUrl("/medlemskap/bas"),...(freeUpdated?{lastModified:new Date(freeUpdated)}:{})});
   const plans = await getPublicPlans();
   if (plans.length) {
     entries.push({url:absoluteUrl("/medlemskap")});
@@ -55,14 +59,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       if(!/^[a-z0-9][a-z0-9-]*$/.test(plan.slug))continue;
       const updated=toIsoDate(plan.updatedAt);
       entries.push({url:absoluteUrl(`/medlemskap/${plan.slug}`),...(updated?{lastModified:new Date(updated)}:{})});
-    }
-  }
-  if ((await getShopSettings()).enabled) {
-    entries.push({ url: absoluteUrl("/butik") }, { url: absoluteUrl("/butik/villkor") });
-    for (const product of await getPublicShopProducts()) {
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(product.slug)) continue;
-      const updated = toIsoDate(product.updatedAt);
-      entries.push({ url: absoluteUrl(`/butik/${product.slug}`), ...(updated ? { lastModified: new Date(updated) } : {}) });
     }
   }
   return entries.filter((entry) => {

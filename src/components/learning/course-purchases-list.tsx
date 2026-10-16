@@ -19,15 +19,15 @@ export function CoursePurchasesList({ purchases, admin = false }: {
       <p className="small muted">{formatDateTime(purchase.paidAt)} · {formatMoney(purchase.priceOre)} inklusive {purchase.vatPercent}% moms</p>
       {purchase.revoked
         ? <p className="notice">Åtkomsten från detta köp har spärrats efter en återbetalning, tvist eller betalningskontroll. Separat tilldelad åtkomst påverkas inte. {admin ? "Kontrollera betalningen i Stripe." : <Link href="/kontakt" className="inline-link">Kontakta oss om köpet.</Link>}</p>
-        : <p>Kursåtkomst utan tidsgräns. {purchase.groupName && <>Gruppen <strong>{purchase.groupName}</strong> ingår{purchase.groupExpiresAt ? <> till {formatDateTime(purchase.groupExpiresAt)}{Date.parse(purchase.groupExpiresAt) <= Date.now() && " (gruppåtkomsten har löpt ut)"}</> : " utan tidsgräns"}.</>}</p>}
+        : <><p>Kursåtkomst utan tidsgräns.</p>{purchase.isBundle && <ul>{purchase.courses.map(course => <li key={course.id}>{course.title}</li>)}</ul>}{purchase.groups.length > 0 && <ul>{purchase.groups.map(group => <li key={group.id}>Gruppen <strong>{group.name}</strong> ingår{group.expiresAt ? <> till {formatDateTime(group.expiresAt)}{Date.parse(group.expiresAt) <= Date.now() && " (gruppåtkomsten har löpt ut)"}</> : " utan tidsgräns"}.</li>)}</ul>}</>}
       <details>
         <summary>Köpvillkor som godkändes vid köpet</summary>
         <TextContent text={purchase.terms} />
       </details>
       {!admin && <div className="membership-actions">
-        {purchase.courseAvailable ? <Link href={`/elevportal/kurser/${purchase.courseId}`} className="text-link">Öppna kursen</Link>
-          : <Link href="/kontakt" className="text-link">Få hjälp med kursåtkomsten</Link>}
-        {purchase.groupAvailable && <Link href={`/elevportal/grupper/${purchase.groupId}`} className="text-link">Öppna gruppen</Link>}
+        {purchase.courses.filter(course => course.available).map(course => <Link key={course.id} href={`/elevportal/kurser/${course.id}`} className="text-link">{purchase.isBundle ? course.title : "Öppna kursen"}</Link>)}
+        {!purchase.courses.some(course => course.available) && <Link href="/kontakt" className="text-link">Få hjälp med kursåtkomsten</Link>}
+        {purchase.groups.filter(group => group.available).map(group => <Link key={group.id} href={`/elevportal/grupper/${group.id}`} className="text-link">Öppna {group.name}</Link>)}
       </div>}
     </article>)}
   </div>;

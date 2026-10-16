@@ -1,7 +1,7 @@
 .questions-list { display: grid; gap: 14px; margin-block: 28px; }
-.questions-list details { background: var(--cream, #fffdf7); border: 1px solid #d4ddca; border-radius: 18px; padding: 22px 25px; }
-.questions-list summary { color: #35584c; font-weight: 600; cursor: pointer; font-size: 17px; }
-.questions-list summary:focus-visible { outline: 2px solid #35584c; outline-offset: 7px; border-radius: 3px; }
+.questions-list details { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 22px 25px; }
+.questions-list summary { color: var(--ink); font-weight: 600; cursor: pointer; font-size: 17px; }
+.questions-list summary:focus-visible { outline: 2px solid #dd9933; outline-offset: 7px; border-radius: 3px; }
 .questions-list p { margin: 18px 0 0; line-height: 1.8; }
 .questions-list a { text-decoration: underline; text-underline-offset: 3px; }
 @media (max-width: 650px) { .questions-list details { padding: 20px; } }

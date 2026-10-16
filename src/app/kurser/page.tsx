@@ -1,12 +1,12 @@
-import { ArrowDown, BookOpen, CirclePlay, Sprout } from "lucide-react";
+import { ArrowDown, BookOpen, CirclePlay, ChartNoAxesCombined } from "lucide-react";
 import { getCourses } from "@/lib/db";
 import { createPageMetadata } from "@/lib/seo";
 import { CourseCard } from "@/components/learning/cards";
 
 export const metadata = createPageMetadata({
-  title: "Kurser i klassisk kinesisk medicin",
+  title: "Kurser i etiska och halalinvesteringar",
   description:
-    "Utforska Tibb.nu:s kurser i klassisk kinesisk medicin i ljuset av den profetiska vägledningen. Fördjupa din kunskap i egen takt via elevportalen.",
+    "Utforska Slowlax kurser i etiska och halalinvesteringar. Fördjupa din kunskap i egen takt via elevportalen.",
   path: "/kurser",
 });
 export const dynamic = "force-dynamic";
@@ -18,16 +18,16 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
       <section className="learning-hero section container">
         <div className="learning-hero-copy">
           <p className="eyebrow">
-            <span className="eyebrow-line" /> Tibb akademi
+            <span className="eyebrow-line" /> Slowlax akademi
           </p>
           <h1 className="page-title">
             Kunskap som
             <br />
-            <em>slår rot.</em>
+            <em>bygger din framtid.</em>
           </h1>
           <p className="lead muted">
-            Utforska mötet mellan klassisk kinesisk medicin och den profetiska
-            vägledningen. Lär i din egen takt, med utrymme för reflektion.
+            Lär dig principerna för halalfinansiering och långsiktiga investeringar.
+            Utveckla din kunskap i egen takt, steg för steg.
           </p>
           <a href="#kurser" className="button button-primary">
             Utforska våra kurser <ArrowDown size={17} />
@@ -36,14 +36,14 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         <div className="learning-hero-visual" aria-hidden="true">
           <span className="learning-orbit orbit-one" />
           <span className="learning-orbit orbit-two" />
-          <Sprout size={154} strokeWidth={0.8} />
+          <ChartNoAxesCombined size={154} strokeWidth={0.8} />
           <p>
             Väx i kunskap.
             <br />
-            Väx i balans.
+            Investera medvetet.
           </p>
           <span className="learning-visual-note">
-            Tradition möter förståelse
+            Dina värderingar visar vägen
           </span>
         </div>
       </section>
@@ -63,7 +63,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           </span>
         </div>
         <div>
-          <Sprout size={23} />
+          <ChartNoAxesCombined size={23} />
           <span>
             <strong>Från teori till förståelse</strong>
             <small>Ta med dig kunskapen in i livet</small>

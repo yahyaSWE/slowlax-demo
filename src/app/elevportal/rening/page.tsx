@@ -1,0 +1,15 @@
+import Link from 'next/link';
+import {randomUUID} from 'node:crypto';
+import {requireUser} from '@/lib/auth';
+import {getPurificationBalance,getUserPurificationRequests} from '@/lib/purification-domain';
+import {getUserReningPayments} from '@/lib/purification-billing';
+import {ReningRequestForm,ReningPaymentCancel} from '@/components/purification/forms';
+import {ReningRequestList,date} from '@/components/purification/views';
+import {PRIVATE_METADATA} from '@/lib/seo';
+export const dynamic='force-dynamic';
+export const metadata={...PRIVATE_METADATA,title:'Rening'};
+export default async function StudentRening(){const user=await requireUser();if(user.role!=='student')return <section className="panel"><h1>Rening</h1><p>Tjänsten används med ett elevkonto.</p><Link href="/admin/rening">Till reningsärenden i admin</Link></section>;
+ const requests=await getUserPurificationRequests(user.id),verified=!!user.emailVerifiedAt,[balance,payments]=verified?await Promise.all([getPurificationBalance(user.id),getUserReningPayments(user.id)]):[null,[]];
+ return <><header className="membership-hero"><p className="eyebrow">Dina innehav</p><h1 className="page-title">Rening</h1><p>Skicka in dina aktier för manuell granskning och läs ditt svar här.</p></header>{!verified?<p className="notice">Verifiera din e-postadress innan du använder tjänsten. <Link href="/verifiera-epost?returnTo=%2Felevportal%2Frening">Verifiera e-post</Link></p>:<><section className="panel stack"><h2>Ditt saldo</h2><p className="rening-balance">{balance!.totalAvailableCredits} reningar tillgängliga</p><p>En rening gäller ett bolag, oavsett hur många aktier du äger. Medlemskvoten gäller den betalda perioden. Köpta engångsreningar sparas tills du använder dem.</p>{balance!.claimableBasCredits>0&&<p>{balance!.claimableBasCredits} reningar från Bas aktiveras när du skickar ditt första ärende.</p>}{balance!.grants.map(g=><p className="small muted" key={g.id}>{g.sourceName}: {g.remainingCredits} av {g.totalCredits} kvar · {g.status==='active'?'Tillgängliga':g.status==='expired'?'Utgångna':g.status==='revoked'?'Spärrade':'Kommande'}{g.expiresAt&&` · till ${date(g.expiresAt)}`}</p>)}<Link href="/rening" className="button button-secondary">Köp fler reningar eller läs om tjänsten</Link></section>{balance!.totalAvailableCredits>0&&<section className="panel stack"><h2>Nytt reningsärende</h2><ReningRequestForm balance={balance!.totalAvailableCredits} idempotencyKey={randomUUID()}/></section>}</>}
+ <section className="section stack"><h2>Mina ärenden</h2><ReningRequestList requests={requests}/></section>{payments.length>0&&<section className="panel stack"><h2>Separata köp och betalningsförsök</h2>{payments.map(p=><article className="stack" key={String(p.id)}><h3>{String(p.offer_title)} · {String(p.credits)} reningar</h3><p>Status: {Number(p.revoked)?'Återbetalt eller spärrat':({paid:'Betalt',open:'Påbörjat',creating:'Förbereds',completed:'Betalning behandlas',cancelled:'Avbrutet',expired:'Utgånget'} as Record<string,string>)[String(p.status)]}</p>{['creating','open'].includes(String(p.status))&&<ReningPaymentCancel offerId={Number(p.offer_id)}/>}</article>)}</section>}</>;
+}

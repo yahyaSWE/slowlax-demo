@@ -595,8 +595,8 @@ export function FivePhasesSelfTest() {
           </section>
           <p className="selftest-local-note">
             {canPersist
-              ? "Dina svar sparas bara i den här webbläsaren. De skickas inte till Tibb.nu."
-              : "Dina svar skickas inte till Tibb.nu. Lokal lagring är blockerad, så testet finns bara kvar under det här besöket."}
+              ? "Dina svar sparas bara i den här webbläsaren. De skickas inte till Slowlax."
+              : "Dina svar skickas inte till Slowlax. Lokal lagring är blockerad, så testet finns bara kvar under det här besöket."}
           </p>
           <Disclaimer />
         </>

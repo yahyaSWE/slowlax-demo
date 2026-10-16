@@ -1,12 +1,12 @@
-import { BookOpen, Sprout } from "lucide-react";
+import { BookOpen, ChartNoAxesCombined } from "lucide-react";
 import { getArticles } from "@/lib/db";
 import { createPageMetadata } from "@/lib/seo";
 import { ArticleCard } from "@/components/learning/cards";
 
 export const metadata = createPageMetadata({
-  title: "Artiklar om klassisk kinesisk medicin",
+  title: "Nyheter och artiklar om etiska investeringar",
   description:
-    "Tankar, kunskap och perspektiv från Tibb.nu om klassisk kinesisk medicin i ljuset av den profetiska vägledningen.",
+    "Nyheter, utbildningar och perspektiv från Slowlax om etiska och halalinvesteringar.",
   path: "/artiklar",
 });
 export const dynamic = "force-dynamic";
@@ -17,19 +17,18 @@ export default async function ArticlesPage() {
     <>
       <section className="section container journal-heading">
         <p className="eyebrow">
-          <span className="eyebrow-line" /> Tibb journal
+          <span className="eyebrow-line" /> Slowlax nyheter
         </p>
         <h1 className="page-title">
-          Tankar för ett
+          Kunskap för
           <br />
-          <em>liv i balans.</em>
+          <em>medvetna investeringar.</em>
         </h1>
         <p className="lead muted">
-          Kunskap, perspektiv och reflektioner. En plats att stanna upp och
-          utforska klassisk kinesisk medicin i ljuset av den profetiska
-          vägledningen.
+          Nyheter, perspektiv och reflektioner om aktiesparande, islamisk etik
+          och långsiktiga investeringar.
         </p>
-        <Sprout
+        <ChartNoAxesCombined
           className="journal-heading-sprout"
           size={110}
           strokeWidth={0.8}

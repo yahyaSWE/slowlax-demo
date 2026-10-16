@@ -56,6 +56,10 @@ before(async () => {
     passwordHash: hashPassword("availability student test password"),
     role: "student",
   });
+  // This legacy helper suite supplies its own booking fixtures because the
+  // public Slowlax installation has no active booking setup.
+  await getDb().prepare("UPDATE practitioners SET name='Isolated fixture practitioner',active=1 WHERE id=1").run();
+  await getDb().prepare("UPDATE settings SET pay_on_site=1 WHERE id=1").run();
 });
 
 beforeEach(async () => {

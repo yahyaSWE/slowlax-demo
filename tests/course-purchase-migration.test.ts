@@ -16,7 +16,7 @@ test("v9 course purchase migration starts disabled and empty, preserves deployed
         return new Proxy(tx, {
           get(transaction, key) {
             if (key === "executeMultiple") return async (sql: string) => {
-              if (skip && sql.includes("CREATE TABLE IF NOT EXISTS course_sales_settings")) return;
+              if (skip && /CREATE TABLE IF NOT EXISTS (course_sales_settings|course_bundles|purification_|rening_)/.test(sql)) return;
               await transaction.executeMultiple(sql);
               if (!skip && interrupt && sql.includes("CREATE TABLE IF NOT EXISTS course_sales_settings")) {
                 interrupt = false; throw new Error("isolated interrupted course purchase migration");

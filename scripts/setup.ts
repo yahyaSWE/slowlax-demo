@@ -5,8 +5,13 @@ import { existsSync } from "node:fs";
 import { createFirstAdmin, hasAdmin } from "../src/lib/db";
 import { hashPassword } from "../src/lib/security";
 import { signupSchema } from "../src/lib/validation";
+import { supabaseAuthRequested } from "../src/lib/supabase-auth-config";
 if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 async function main() {
+  if (supabaseAuthRequested()) {
+    console.log("Supabase Auth är aktiverat. Använd /setup med SETUP_TOKEN för ett nytt administratörskonto, eller koppla en befintlig administratör med SUPABASE_ADMIN_USER_ID enligt docs/supabase-auth-setup.md. Inget lokalt lösenordskonto skapades.");
+    return;
+  }
   if (await hasAdmin()) {
     console.log("Ett administratörskonto finns redan. Logga in på /logga-in.");
     return;
@@ -26,7 +31,7 @@ async function main() {
   try {
     const name = await prompt.question("Namn: ");
     const email = await prompt.question("E-postadress: ");
-    let password = process.env.TIBB_ADMIN_PASSWORD;
+    let password = process.env.SLOWLAX_ADMIN_PASSWORD || process.env.TIBB_ADMIN_PASSWORD;
     if (!password) {
       stdout.write("Lösenord (minst 12 tecken): ");
       muted = true;

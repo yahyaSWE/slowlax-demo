@@ -51,8 +51,6 @@ import {
 } from "../src/lib/security";
 import { stockholmToIso, localDateTime } from "../src/lib/time";
 import { registerStudent } from "../src/lib/accounts";
-import { getStripe } from "../src/lib/stripe";
-import { POST as stripeWebhook } from "../src/app/api/stripe/webhook/route";
 import { transaction } from "../src/lib/db";
 const temp = mkdtempSync(join(tmpdir(), "tibb-tests-"));
 delete process.env.TURSO_DATABASE_URL;
@@ -79,6 +77,16 @@ before(async () => {
     passwordHash: hashPassword("other long password"),
     role: "student",
   });
+  // Legacy database helpers are tested with explicit fixtures; the Slowlax
+  // website no longer seeds any booking practitioners or sample courses.
+  await getDb().prepare("INSERT INTO practitioners(id,name,description,active) VALUES(1,?,?,1) ON CONFLICT(id) DO UPDATE SET name=excluded.name,active=1")
+    .run("Isolated fixture practitioner", "Internal database test only");
+  await getDb().prepare("UPDATE settings SET pay_on_site=1,stripe_enabled=1 WHERE id=1").run();
+  await saveCourse(admin.id, {
+    title: "Isolated fixture course", slug: "isolated-fixture-course", description: "Test only", price: "0", published: false,
+  });
+  const courseId = (await getCourses()).find(course => course.slug === "isolated-fixture-course")!.id;
+  await saveLesson(admin.id, { courseId, title: "Isolated fixture lesson", body: "Test only", videoUrl: "", materialUrl: "", position: 1 });
   // Ownership is explicit in this isolated fixture; real signup stays unverified.
   await getDb().prepare("UPDATE users SET email_verified_at=? WHERE id IN (?,?)")
     .run(new Date().toISOString(), student.id, other.id);
@@ -377,7 +385,7 @@ test("signup validates on server and ignores attempted administrator role escala
 });
 test("editing a lesson cannot move or overwrite a lesson in another course", async () => {
   const courses = await getCourses();
-  const first = courses[0];
+  const first = courses.find(course => course.slug === "isolated-fixture-course")!;
   const lesson = (await getLessons(first.id))[0];
   await saveCourse(admin.id, {
     title: "Other course",
@@ -730,171 +738,4 @@ test("delayed verified payment never reclaims an expired slot or marks refund be
     (await getBookingByReference(next.reference))?.status,
     "confirmed",
   );
-});
-test("webhook rejects forged signatures and accepts a correctly signed exact payment", async () => {
-  const treatment = await activeTreatment("Webhook verification");
-  const slotId = await saveSlot(admin.id, treatment.id, futureLocal(6));
-  const booking = await reserveBooking({
-    slotId,
-    name: "Webhook Person",
-    email: "webhook@example.test",
-    phone: "",
-    paymentMethod: "stripe",
-  });
-  await attachCheckout(booking.reference, "cs_test_signed");
-  const payload = JSON.stringify({
-    id: "evt_test_signed",
-    object: "event",
-    created: Math.floor(Date.now() / 1000),
-    data: {
-      object: {
-        id: "cs_test_signed",
-        object: "checkout.session",
-        payment_status: "paid",
-        amount_total: booking.priceOre,
-        currency: "sek",
-      },
-    },
-    type: "checkout.session.completed",
-  });
-  const forged = await stripeWebhook(
-    new Request("http://localhost/api/stripe/webhook", {
-      method: "POST",
-      headers: { "stripe-signature": "t=1,v1=forged" },
-      body: payload,
-    }),
-  );
-  assert.equal(forged.status, 400);
-  assert.equal(
-    (await getBookingByReference(booking.reference))?.paymentStatus,
-    "pending",
-  );
-  const signature = getStripe().webhooks.generateTestHeaderString({
-    payload,
-    secret: process.env.STRIPE_WEBHOOK_SECRET!,
-  });
-  const valid = await stripeWebhook(
-    new Request("http://localhost/api/stripe/webhook", {
-      method: "POST",
-      headers: { "stripe-signature": signature },
-      body: payload,
-    }),
-  );
-  assert.equal(valid.status, 200);
-  assert.equal(
-    (await getBookingByReference(booking.reference))?.paymentStatus,
-    "paid",
-  );
-  const repeated = await stripeWebhook(
-    new Request("http://localhost/api/stripe/webhook", {
-      method: "POST",
-      headers: { "stripe-signature": signature },
-      body: payload,
-    }),
-  );
-  assert.equal(repeated.status, 200);
-  assert.equal(
-    (await getBookingByReference(booking.reference))?.status,
-    "confirmed",
-  );
-});
-test("late-payment webhook retries pending refunds with the same idempotency key", async () => {
-  const treatment = await activeTreatment("Async refund");
-  const slotId = await saveSlot(admin.id, treatment.id, futureLocal(7));
-  const booking = await reserveBooking({
-    slotId,
-    name: "Refund Person",
-    email: "refund@example.test",
-    phone: "",
-    paymentMethod: "stripe",
-  });
-  await attachCheckout(booking.reference, "cs_test_async_refund");
-  await getDb()
-    .prepare("UPDATE bookings SET expires_at=? WHERE id=?")
-    .run(new Date(Date.now() - 1000).toISOString(), booking.id);
-  await expireBookings();
-  const next = await reserveBooking({
-    slotId,
-    name: "New Person",
-    email: "new-refund@example.test",
-    phone: "",
-    paymentMethod: "onsite",
-  });
-  const resource = Object.getPrototypeOf(getStripe().refunds) as Record<
-    string,
-    unknown
-  >;
-  const originalCreate = resource.create,
-    originalRetrieve = resource.retrieve,
-    originalError = console.error;
-  let status = "pending";
-  const keys: string[] = [];
-  resource.create = async (
-    _params: unknown,
-    options: {
-      idempotencyKey: string;
-    },
-  ) => {
-    keys.push(options.idempotencyKey);
-    return { id: "re_test_async" };
-  };
-  resource.retrieve = async () => ({ id: "re_test_async", status });
-  console.error = () => {};
-  try {
-    const payload = JSON.stringify({
-      id: "evt_test_async_refund",
-      object: "event",
-      created: Math.floor(Date.now() / 1000),
-      data: {
-        object: {
-          id: "cs_test_async_refund",
-          object: "checkout.session",
-          payment_status: "paid",
-          payment_intent: "pi_test_async_refund",
-          amount_total: booking.priceOre,
-          currency: "sek",
-        },
-      },
-      type: "checkout.session.completed",
-    });
-    const signature = getStripe().webhooks.generateTestHeaderString({
-      payload,
-      secret: process.env.STRIPE_WEBHOOK_SECRET!,
-    });
-    const request = () =>
-      new Request("http://localhost/api/stripe/webhook", {
-        method: "POST",
-        headers: { "stripe-signature": signature },
-        body: payload,
-      });
-    assert.equal((await stripeWebhook(request())).status, 500);
-    assert.equal(
-      (await getBookingByReference(booking.reference))?.paymentStatus,
-      "pending",
-    );
-    assert.equal(
-      (await getBookingByReference(booking.reference))?.status,
-      "cancelled",
-    );
-    status = "succeeded";
-    assert.equal((await stripeWebhook(request())).status, 200);
-    assert.equal(
-      (await getBookingByReference(booking.reference))?.paymentStatus,
-      "refunded",
-    );
-    assert.deepEqual(keys, [
-      "expired-booking-refund-cs_test_async_refund",
-      "expired-booking-refund-cs_test_async_refund",
-    ]);
-    assert.equal((await stripeWebhook(request())).status, 200);
-    assert.equal(keys.length, 2);
-    assert.equal(
-      (await getBookingByReference(next.reference))?.status,
-      "confirmed",
-    );
-  } finally {
-    resource.create = originalCreate;
-    resource.retrieve = originalRetrieve;
-    console.error = originalError;
-  }
 });

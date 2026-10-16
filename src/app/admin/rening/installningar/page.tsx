@@ -1,0 +1,6 @@
+import Link from 'next/link';
+import {requireAdmin} from '@/lib/auth';
+import {getAdminReningOffers,getReningSettings,reningBillingReady} from '@/lib/rening-offers';
+import {ReningOfferForm,ReningSettingsForm} from '@/components/purification/forms';
+import {AdminHeading} from '@/components/admin/common';
+export default async function ReningSettings(){const u=await requireAdmin(),[offers,settings]=await Promise.all([getAdminReningOffers(u.id),getReningSettings()]);return <><AdminHeading title="Rening – erbjudanden och inställningar" description="Hantera separata köp. Inkluderade kvoter väljer du på respektive medlemskap, Bas eller kurspaket." action={<Link href="/admin/rening" className="button button-secondary">Alla ärenden</Link>}/><p className="notice">Försäljning: {settings.salesEnabled?'öppen':'avstängd'} · Stripe-konfiguration: {reningBillingReady()?'angiven':'saknas'}</p><section className="panel form-panel"><h2>Försäljning och köpvillkor</h2><ReningSettingsForm settings={settings}/></section>{offers.map(o=><section className="panel form-panel" key={o.id}><h2>{o.title}</h2><ReningOfferForm offer={o}/></section>)}<section className="panel form-panel"><h2>Skapa reningserbjudande</h2><ReningOfferForm/></section></>;}

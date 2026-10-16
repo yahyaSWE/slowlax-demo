@@ -127,7 +127,7 @@ async function version(client: Client) {
   ).rows[0]?.value;
 }
 
-test("new databases commit the full schema, inactive starter content and version together only once", async () => {
+test("new databases commit the Slowlax seed and version together without opening sales or inventing lessons", async () => {
   await fixture(async (client) => {
     const first = observedAdapter(client);
     await Promise.all([first.adapter.initialize(), first.adapter.initialize()]);
@@ -144,27 +144,35 @@ test("new databases commit the full schema, inactive starter content and version
     assert.equal(
       (
         await client.execute(
-          "SELECT COUNT(*) total FROM treatments WHERE active=0",
+          "SELECT COUNT(*) total FROM treatments",
         )
       ).rows[0].total,
-      2,
+      0,
     );
     assert.equal(
       (
         await client.execute(
-          "SELECT COUNT(*) total FROM articles WHERE published=0",
+          "SELECT COUNT(*) total FROM articles WHERE title LIKE '%Tibb%'",
         )
       ).rows[0].total,
-      1,
+      0,
     );
     assert.equal(
       (
         await client.execute(
-          "SELECT COUNT(*) total FROM courses WHERE published=0",
+          "SELECT COUNT(*) total FROM courses WHERE published=1 AND title='Bygg din egen Halal-pengamaskin'",
         )
       ).rows[0].total,
       1,
     );
+    assert.equal((await client.execute("SELECT COUNT(*) total FROM lessons")).rows[0].total, 0);
+    assert.equal((await client.execute("SELECT COUNT(*) total FROM articles WHERE published=1 AND created_at LIKE '2024-10-06%' AND updated_at=created_at")).rows[0].total, 3);
+    assert.deepEqual((await client.execute("SELECT site_name,email,phone,address,pay_on_site,stripe_enabled FROM settings WHERE id=1")).rows[0],
+      { site_name: "Slowlax", email: "info@slowlax.se", phone: "", address: "", pay_on_site: 0, stripe_enabled: 0 });
+    assert.equal((await client.execute("SELECT sales_enabled FROM membership_settings WHERE id=1")).rows[0].sales_enabled, 0);
+    assert.equal((await client.execute("SELECT COUNT(*) total FROM membership_plans")).rows[0].total, 0);
+    assert.deepEqual((await client.execute("SELECT name,published FROM membership_groups ORDER BY id")).rows,
+      [{ name: "Bas", published: 0 }, { name: "Premium", published: 0 }]);
     assert.equal(
       (await client.execute("SELECT COUNT(*) total FROM users")).rows[0].total,
       0,
@@ -185,7 +193,7 @@ test("new databases commit the full schema, inactive starter content and version
     assert.equal(
       (await client.execute("SELECT COUNT(*) total FROM treatments")).rows[0]
         .total,
-      2,
+      0,
     );
   });
 });
@@ -212,7 +220,7 @@ test("an existing unversioned database upgrades missing columns without reseedin
     assert.equal(await version(client), String(SCHEMA_VERSION));
     assert.deepEqual(
       (await client.execute("SELECT * FROM users")).rows,
-      usersBefore.map((row) => ({ ...row, email_verified_at: null })),
+      usersBefore.map((row) => ({ ...row, email_verified_at: null, supabase_id: null })),
     );
     assert.deepEqual((await client.execute("SELECT * FROM bookings")).rows[0], {
       ...bookingBefore,
@@ -312,7 +320,7 @@ test("an instance waiting for migration rechecks the committed version under the
     assert.equal(
       (await client.execute("SELECT COUNT(*) total FROM treatments")).rows[0]
         .total,
-      2,
+      0,
     );
   });
 });
@@ -352,7 +360,7 @@ test("migration failure rolls back schema, seed and version and can be retried s
     assert.equal(
       (await client.execute("SELECT COUNT(*) total FROM treatments")).rows[0]
         .total,
-      2,
+      0,
     );
     assert.equal(calls.filter((call) => call.method === "commit").length, 1);
   });

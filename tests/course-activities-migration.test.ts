@@ -53,7 +53,7 @@ after(async () => {
 
 test("version 2 migration preserves courses, lesson IDs, enrollments, progress and source markers unchanged", async () => {
   await getDb().initialize();
-  for (const [index, query] of historyQueries.entries()) assert.deepEqual(await getDb().prepare(query).all(), index === 0 ? history[index].map((row) => ({ ...row, email_verified_at: null })) : history[index]);
+  for (const [index, query] of historyQueries.entries()) assert.deepEqual(await getDb().prepare(query).all(), index === 0 ? history[index].map((row) => ({ ...row, email_verified_at: null, supabase_id: null })) : history[index]);
   assert.equal((await getDb().prepare("SELECT value FROM app_meta WHERE key='import-preservation'").get())!.value, "legacy-course-id:42");
   assert.equal(Number((await getDb().prepare("PRAGMA user_version").get())!.user_version), SCHEMA_VERSION);
   assert.equal((await getDb().prepare("SELECT value FROM app_meta WHERE key='schema_version'").get())!.value, String(SCHEMA_VERSION));

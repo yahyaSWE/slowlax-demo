@@ -10,7 +10,6 @@ import {hashPassword} from "../src/lib/security";
 import {saveShopSettings,getShopSettings,saveShopProduct,getAdminShopProduct,getPublicShopProducts,saveShopQuantityOffer,saveShopCoupon,getAdminShopCoupons,saveShopShippingRule,quoteShopCart,reserveShopOrder,cancelShopOrder,attachShopCheckout,completeShopPayment,refundShopPayment,expireShopOrders,getShopOrderById} from "../src/lib/shop";
 import {createShopCheckout} from "../src/lib/shop-checkout";
 import {getStripe} from "../src/lib/stripe";
-import {POST as quoteRoute} from "../src/app/api/shop/quote/route";
 import type {ShopProduct,ShopCoupon,ShopShippingRule} from "../src/lib/shop-types";
 for(const key of ["TURSO_DATABASE_URL","TURSO_AUTH_TOKEN","VERCEL","RESEND_API_KEY","EMAIL_FROM","TRUST_PROXY"]) delete process.env[key];
 const directory=mkdtempSync(join(tmpdir(),"tibb-commerce-tests-"));
@@ -125,15 +124,6 @@ test("coupon öre are allocated exactly at high amounts and Stripe receives only
  assert.equal(lines.reduce((sum,line)=>sum+line.quantity*line.price_data.unit_amount,0),order.totalOre);
  await coupon({code:"TOOMUCH",type:"fixed",value:10000000});const cheap=await product({priceOre:301});await assert.rejects(quoteShopCart({items:[{productId:cheap,quantity:1}],delivery:"pickup",couponCode:"TOOMUCH"}),/kostnadsfria/);
  await coupon({code:"TOOSMALL",type:"fixed",value:2});await assert.rejects(quoteShopCart({items:[{productId:cheap,quantity:1}],delivery:"pickup",couponCode:"TOOSMALL"}),/minst 3 kr/);
-});
-test("quote HTTP rejects cross-origin and malformed bodies and has no order side effect; admin role stays fresh",async()=>{
- const a=await product();const request=(origin:string,body:unknown)=>new Request("https://commerce.example.test/api/shop/quote",{method:"POST",headers:{origin,"content-type":"application/json"},body:JSON.stringify(body)});
- assert.equal((await quoteRoute(request("https://foreign.example.test",{items:[{productId:a,quantity:1}],delivery:"pickup"}))).status,403);
- assert.equal((await quoteRoute(request("https://commerce.example.test",{items:[{productId:a,quantity:1}],delivery:"pickup"}))).status,200);
- assert.equal((await getDb().prepare("SELECT COUNT(*) n FROM shop_orders").get())!.n,0);
- await assert.rejects(saveShopQuantityOffer(studentId,null,{name:"Forged",scope:"mixed",productIds:[],minQuantity:2,percent:10,active:true}),/behörighet/);
- await getDb().prepare("UPDATE users SET role='student' WHERE id=?").run(adminId);
- try {await assert.rejects(rule(),/behörighet/);await assert.rejects(coupon(),/behörighet/);}finally{await getDb().prepare("UPDATE users SET role='admin' WHERE id=?").run(adminId);}
 });
 test("independent processes cannot consume the same last coupon use",async()=>{
  const a=await product();await coupon({code:"LASTUSE",maxUses:1});

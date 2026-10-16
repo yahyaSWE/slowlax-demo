@@ -1,0 +1,10 @@
+import Link from 'next/link';
+import {requireAdmin} from '@/lib/auth';
+import {getPurificationQuotaSettings,type PurificationQuotaSource,type PurificationHolding,type StudentPurificationRequest} from '@/lib/purification-domain';
+import {ReningQuotaForm} from './forms';
+import './purification.css';
+export const statusLabel={submitted:'Väntar',processing:'Handläggs',completed:'Klart',rejected:'Avvisat',cancelled:'Avbrutet'};
+export const date=(s:string)=>new Intl.DateTimeFormat('sv-SE',{dateStyle:'medium',timeStyle:'short',timeZone:'Europe/Stockholm'}).format(new Date(s));
+export function ReningHoldings({holdings}:{holdings:PurificationHolding[]}){return <div className="rening-table"><table><thead><tr><th>Bolag/aktie</th><th>Ticker/ISIN</th><th>Börs / aktieslag</th><th>Antal ägda</th></tr></thead><tbody>{holdings.map((h,i)=><tr key={i}><td>{h.companyName}</td><td>{h.ticker||'—'}</td><td>{[h.exchange,h.shareClass].filter(Boolean).join(' · ')||'—'}</td><td>{h.shares.replace('.',',')}</td></tr>)}</tbody></table></div>;}
+export function ReningRequestList({requests,admin=false}:{requests:StudentPurificationRequest[];admin?:boolean}){return requests.length?<div className="rening-grid">{requests.map(r=><article className="panel rening-record" key={r.id}><span className="badge">{statusLabel[r.status]}</span><h3>{r.companyCount} {r.companyCount===1?'bolag':'bolag'} · {date(r.createdAt)}</h3><p>{r.holdings.map(h=>h.companyName).join(', ')}</p><Link className="text-link" href={`${admin?'/admin':'/elevportal'}/rening/${r.id}`}>{r.status==='completed'?'Läs svaret':'Öppna ärendet'} →</Link></article>)}</div>:<p className="notice">Inga ärenden ännu.</p>;}
+export async function PurificationQuotaPanel({sourceType,sourceId,returnTo}:{sourceType:PurificationQuotaSource;sourceId:number;returnTo:string}){await requireAdmin();const settings=await getPurificationQuotaSettings(sourceType,sourceId);return <section className="panel form-panel" id="rening-kvot"><h2>Rening som ingår</h2><ReningQuotaForm settings={settings} returnTo={returnTo}/></section>;}

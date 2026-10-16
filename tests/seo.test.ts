@@ -19,13 +19,13 @@ test("canonical origin can migrate independently of payment callbacks and never 
     assert.equal(getSiteUrl().href, "https://tibb.nu/");
     assert.equal(absoluteUrl("/boka"), "https://tibb.nu/boka");
   });
-  withEnvironment({ APP_URL: "http://localhost:3000", VERCEL_URL: "preview.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/"));
+  withEnvironment({ APP_URL: "http://localhost:3000", VERCEL_URL: "preview.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://slowlax.se/"));
   withEnvironment({ VERCEL_ENV: "preview", APP_URL: "https://preview.vercel.app", VERCEL_PROJECT_PRODUCTION_URL: "tibbnu.vercel.app" }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/"));
 });
 
 test("unsafe, private and non-origin URL configuration cannot become a canonical", () => {
   for (const value of ["http://tibb.nu", "https://name:secret@tibb.nu", "https://tibb.nu/path", "https://tibb.nu/?secret=x", "https://localhost", "https://192.168.1.2", "https://10.0.0.1", "https://[::1]"]) {
-    withEnvironment({ SITE_URL: value }, () => assert.equal(getSiteUrl().href, "https://tibbnu.vercel.app/", value));
+    withEnvironment({ SITE_URL: value }, () => assert.equal(getSiteUrl().href, "https://slowlax.se/", value));
   }
   for (const path of ["//attacker.test", "https://attacker.test", "/boka?token=secret", "/\\attacker.test"]) assert.throws(() => absoluteUrl(path));
 });
@@ -67,8 +67,9 @@ test("JSON-LD remains parseable without allowing script termination from stored 
 test("organization facts do not invent an address, medical license or reviews, and invalid calendar dates are omitted", () => {
   const schema = buildOrganizationSchema();
   assert.equal(schema["@type"], "Organization");
-  assert.equal(schema.location.address.addressLocality, "Jönköping");
-  assert.equal(Object.hasOwn(schema.location.address, "streetAddress"), false);
+  assert.equal(schema.name, "Slowlax");
+  assert.equal(Object.hasOwn(schema, "location"), false);
+  assert.equal(Object.hasOwn(schema, "address"), false);
   for (const field of ["aggregateRating", "review", "openingHours", "hasCredential"]) assert.equal(Object.hasOwn(schema, field), false);
   assert.equal(toIsoDate("2026-02-31T00:00:00Z"), undefined);
   assert.equal(toIsoDate("not-a-date"), undefined);

@@ -1,8 +1,8 @@
 import { databaseConfigured } from "@/lib/database-config";
 import { absoluteUrl, isIndexableDeployment, PUBLIC_PAGES } from "@/lib/seo";
 import { getPublicSeoContent } from "@/lib/seo-data";
-import { getShopSettings, getPublicShopProducts } from "@/lib/shop";
 import { getPublicPlans } from "@/lib/memberships";
+import { getPublicFreeMembership } from "@/lib/free-membership-domain";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +37,11 @@ export async function GET(): Promise<Response> {
     });
   }
   const lines = [
-    "# Tibb.nu",
+    "# Slowlax",
     "",
-    "> Klassisk kinesisk medicin i ljuset av den Profetiska vägledningen.",
+    "> Investera i aktier utan att kompromissa med dina värderingar.",
     "",
-    "Offentlig information om behandlingar, kurser, artiklar och självreflektion.",
+    "Offentlig information om etiska och halalinvesteringar, kurser, artiklar och medlemskap.",
     "",
     "## Offentliga sidor",
     "",
@@ -53,6 +53,7 @@ export async function GET(): Promise<Response> {
   for (const [heading, prefix, records] of [
     ["Publicerade artiklar", "/artiklar/", content.articles],
     ["Publicerade kurser", "/kurser/", content.courses],
+    ["Publicerade kurspaket", "/paket/", content.bundles],
   ] as const) {
     const published = records.filter((record) => /^[a-z0-9][a-z0-9-]*$/.test(record.slug));
     if (!published.length) continue;
@@ -71,11 +72,7 @@ export async function GET(): Promise<Response> {
     "Detta är en informationskarta över offentliga sidor. Filen ger ingen garanti om indexering, sökplacering eller synlighet i AI-sök.",
     "",
   );
-  if ((await getShopSettings()).enabled) {
-    lines.push("", "## Butik", "", `- [Butik](${absoluteUrl("/butik")})`);
-    for (const product of await getPublicShopProducts()) if (/^[a-z0-9][a-z0-9-]*$/.test(product.slug)) lines.push(`- [${label(product.name)}](${absoluteUrl(`/butik/${product.slug}`)})`);
-  }
-  const plans=await getPublicPlans();
-  if(plans.length){lines.push("","## Medlemskap","",`- [Medlemskap](${absoluteUrl("/medlemskap")})`);for(const plan of plans)if(/^[a-z0-9][a-z0-9-]*$/.test(plan.slug))lines.push(`- [${label(plan.name)}](${absoluteUrl(`/medlemskap/${plan.slug}`)})`);lines.push("","Gruppinlägg, dokument och elevuppgifter är privata och ingår inte i denna innehållskarta.");}
+  const [plans,freeMembership]=await Promise.all([getPublicPlans(),getPublicFreeMembership()]);
+  lines.push("","## Medlemskap","",`- [${label(freeMembership.name)}](${absoluteUrl("/medlemskap/bas")})`,...plans.filter(plan=>/^[a-z0-9][a-z0-9-]*$/.test(plan.slug)).map(plan=>`- [${label(plan.name)}](${absoluteUrl(`/medlemskap/${plan.slug}`)})`),"","Gruppinlägg, dokument och elevuppgifter är privata och ingår inte i denna innehållskarta.");
   return new Response(lines.join("\n"), { headers });
 }

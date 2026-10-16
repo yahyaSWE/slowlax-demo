@@ -1,8 +1,16 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getPublicPlans } from "@/lib/memberships";
-import { createPageMetadata,PRIVATE_METADATA } from "@/lib/seo";
-import { membershipSettingsForRender } from "@/components/memberships/server-data";
+import { getPublicFreeMembership } from "@/lib/free-membership-domain";
+import { createPageMetadata } from "@/lib/seo";
 import { MembershipPlanCard } from "@/components/memberships/views";
-export const dynamic="force-dynamic";
-export async function generateMetadata(){return(await membershipSettingsForRender()).salesEnabled?createPageMetadata({title:"Medlemskap",description:"Utforska medlemskap med kurser och nytt gruppmaterial hos Tibb.nu.",path:"/medlemskap"}):PRIVATE_METADATA;}
-export default async function MembershipsPage(){const settings=await membershipSettingsForRender();if(!settings.salesEnabled)notFound();const plans=await getPublicPlans();return <section className="section container"><header className="membership-hero"><h1 className="page-title">Medlemskap</h1><p>Lär i din egen takt med kurser och material för din grupp. Välj det medlemskap som passar dig.</p></header>{plans.length?<div className="membership-cards">{plans.map(plan=><MembershipPlanCard key={plan.id} plan={plan}/>)}</div>:<div className="empty-state"><h2>Nya medlemskap är på väg</h2><p>Här visas erbjudandena när de är publicerade.</p></div>}</section>;}
+import { FreeMembershipCard } from "@/components/memberships/free-membership";
+export const dynamic = "force-dynamic";
+export const metadata = createPageMetadata({ title: "Medlemskap", description: "Välj Bas medlemskap kostnadsfritt eller utforska Slowlax medlemskap med kurser, grupper och gemenskap.", path: "/medlemskap" });
+export default async function MembershipsPage() {
+  const [freeMembership, plans] = await Promise.all([getPublicFreeMembership(), getPublicPlans()]);
+  return <section className="section container">
+    <header className="page-heading"><p className="eyebrow">LÄR TILLSAMMANS MED SLOWLAX</p><h1>En gemenskap.<br /><em>Flera vägar att växa.</em></h1><p>Kurser och kunskapsdelning för dig som vill lära dig mer om etiska och halalinvesteringar.</p></header>
+    <div className="membership-cards"><FreeMembershipCard offer={freeMembership} />{plans.map(plan => <MembershipPlanCard key={plan.id} plan={plan} />)}</div>
+    <div className="section-heading" style={{marginTop:48}}><h2>Redan medlem?</h2><Link href="/elevportal" className="button button-secondary">Till elevportalen</Link></div>
+  </section>;
+}

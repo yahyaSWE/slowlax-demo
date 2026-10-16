@@ -12,6 +12,7 @@ import type { ContentActionState } from "./content-action-state";
 export type CourseSalesFields = {
   enabled: boolean;
   groupId: string;
+  groupIds: string[];
   groupAccessDays: string;
   vatPercent: string;
   terms: string;
@@ -26,6 +27,7 @@ export async function saveCourseSalesAction(
   const values: CourseSalesFields = {
     enabled: field(form, "enabled") === "on",
     groupId: field(form, "groupId"),
+    groupIds: form.getAll("groupId").filter((value): value is string => typeof value === "string" && !!value),
     groupAccessDays: field(form, "groupAccessDays"),
     vatPercent: field(form, "vatPercent"),
     terms: field(form, "terms"),
@@ -35,7 +37,8 @@ export async function saveCourseSalesAction(
     await saveCourseSalesSettings(user.id, courseId, {
       enabled: values.enabled,
       groupId: values.groupId ? Number(values.groupId) : null,
-      groupAccessDays: values.groupId && values.groupAccessDays ? Number(values.groupAccessDays) : null,
+      groupIds: values.groupIds.map(Number),
+      groupAccessDays: values.groupIds.length && values.groupAccessDays ? Number(values.groupAccessDays) : null,
       vatPercent: Number(values.vatPercent) as 0 | 6 | 12 | 25,
       terms: values.terms,
       expectedUpdatedAt: values.expectedUpdatedAt || null,
@@ -49,7 +52,9 @@ export async function saveCourseSalesAction(
     };
   }
   revalidatePath("/kurser", "layout");
+  revalidatePath("/paket", "layout");
   revalidatePath(`/admin/kurser/${courseId}`);
   revalidatePath("/elevportal", "layout");
-  redirect(`/admin/kurser/${courseId}?success=${encodeURIComponent("Köpinställningarna har sparats.")}&saved=${Date.now()}&savedForm=course-sales-${courseId}`);
+  const destination = field(form, "returnTo") === `/admin/paket/${courseId}` ? `/admin/paket/${courseId}` : `/admin/kurser/${courseId}`;
+  redirect(`${destination}?success=${encodeURIComponent("Köpinställningarna har sparats.")}&saved=${Date.now()}&savedForm=course-sales-${courseId}`);
 }

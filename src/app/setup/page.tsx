@@ -6,7 +6,7 @@ import { PRIVATE_METADATA } from "@/lib/seo";
 export const dynamic = "force-dynamic";
 export const metadata = {
   ...PRIVATE_METADATA,
-  title: "Konfigurera Tibb.nu",
+  title: "Konfigurera Slowlax",
 };
 export default async function SetupPage({
   searchParams,
@@ -22,7 +22,7 @@ export default async function SetupPage({
         <div className="panel">
           <p className="eyebrow">Administration</p>
           <h1 style={{ fontSize: "clamp(2rem,4vw,3rem)", marginBlock: "16px" }}>
-            Tibb.nu är konfigurerat
+            Slowlax är konfigurerat
           </h1>
           <p className="muted">Ett administratörskonto finns redan.</p>
           <div className="form-actions">
@@ -43,8 +43,7 @@ export default async function SetupPage({
           Skapa administratör
         </h1>
         <p className="muted">
-          Ditt konto ger tillgång till bokningar, behandlingar, artiklar och
-          kurser.
+          Ditt konto ger tillgång till artiklar, kurser, grupper och medlemskap.
         </p>
       </div>
       <div className="auth-card panel">

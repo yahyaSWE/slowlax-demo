@@ -2,8 +2,8 @@ import { z } from "zod";
 
 const shortText = (max: number) => z.string().trim().max(max);
 export const businessSettingsSchema = z.object({
-  legalName: shortText(150).min(2, "Ange verksamhetens juridiska namn."),
-  organizationNumber: shortText(30).regex(/^\d{6}-\d{4}$/, "Ange organisationsnummer som 559363-3893."),
+  legalName: shortText(150).refine(value => !value || value.length >= 2, "Ange verksamhetens juridiska namn."),
+  organizationNumber: shortText(30).regex(/^(?:\d{6}-\d{4})?$/, "Ange organisationsnummer som 123456-7890, eller lämna tomt tills uppgiften är verifierad."),
   cancellationHours: z.coerce.number().int().min(1).max(336),
   cancellationDetails: shortText(3000),
   courseAccessDescription: shortText(2000).min(1, "Beskriv hur länge kursåtkomsten gäller."),
@@ -15,14 +15,14 @@ export const businessSettingsSchema = z.object({
 });
 export type BusinessSettings = z.infer<typeof businessSettingsSchema>;
 
-// Facts supplied by the owner. No street address, contact channel, retention
-// period, fee or data-transfer arrangement is invented here.
+// Slowlax's public pages do not verify a legal name or organisation number.
+// Leave those fields empty until the owner supplies the correct information.
 export const DEFAULT_BUSINESS_SETTINGS: BusinessSettings = {
-  legalName: "Joart Group AB",
-  organizationNumber: "559363-3893",
+  legalName: "",
+  organizationNumber: "",
   cancellationHours: 24,
   cancellationDetails: "",
-  courseAccessDescription: "Du har tillgång till din tilldelade kurs utan tidsgräns.",
+  courseAccessDescription: "Tillgång till kursmaterial visas i medlemsportalen för ditt konto. Eventuella tidsgränser anges vid tilldelningen eller i erbjudandets villkor.",
   bookingRetention: "",
   studentRetention: "",
   legalBasis: "",
@@ -48,7 +48,6 @@ export function cancellationText(hours: number) {
 export function missingPrivacyInformation(value: BusinessSettings) {
   return [
     !value.legalBasis && "Rättslig grund",
-    !value.bookingRetention && "Lagring av bokningsuppgifter",
     !value.studentRetention && "Lagring av elevuppgifter",
     !value.internationalTransfers && "Leverantörer och överföringar utanför EU/EES",
   ].filter((item): item is string => !!item);

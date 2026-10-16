@@ -6,11 +6,25 @@ import { emailConfigurationStatus } from "@/lib/email-provider";
 import { PRIVATE_METADATA } from "@/lib/seo";
 import { accountAuthHref, safeAccountReturnTo } from "@/lib/account-return";
 import { resolveAccountReturnTo } from "@/lib/account-return-destination";
+import { supabaseAuthConfigurationStatus, supabaseAuthRequested } from "@/lib/supabase-auth-config";
 export const dynamic = "force-dynamic";
 export const metadata = { ...PRIVATE_METADATA, title: "Verifiera e-post" };
-export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ token?: string; message?: string; returnTo?: string }> }) {
+export default async function VerifyEmailPage({ searchParams }: { searchParams: Promise<{ token?: string; token_hash?: string; type?: string; message?: string; returnTo?: string }> }) {
   const params = await searchParams;
   const returnTo = safeAccountReturnTo(params.returnTo, "");
+  if (supabaseAuthRequested()) {
+    const status = supabaseAuthConfigurationStatus();
+    const token = params.token_hash;
+    const valid = token && /^[a-f0-9]{64}$/.test(token) && params.type === "email";
+    return <section className="section container narrow"><div className="auth-card panel">
+      <h1 className="page-title">Bekräfta din e-post.</h1>
+      {params.message && <p className="notice" role="status">{params.message}</p>}
+      {!status.configured && <p className="notice notice-error">{status.reason}</p>}
+      {token ? valid ? <><p>Bekräfta att du vill aktivera ditt konto hos Slowlax. Om du inte skapade kontot, använd Glömt lösenord för att återta adressen.</p><AccountForm kind="verify" token={token} returnTo={returnTo} supabase disabled={!status.configured} /></> : <p className="notice notice-error">Verifieringslänken är ogiltig.</p>
+        : <><p>Öppna verifieringslänken i meddelandet från Slowlax. Du kan begära en ny länk med din e-postadress.</p><AccountForm kind="resend" returnTo={returnTo} supabase disabled={!status.configured} /></>}
+      <p><Link href={accountAuthHref("/glomt-losenord", returnTo)} className="inline-link">Glömt lösenord eller inte ditt konto?</Link> · <Link href={accountAuthHref("/logga-in", returnTo)} className="inline-link">Till inloggning</Link></p>
+    </div></section>;
+  }
   if (params.token) return <section className="section container narrow"><div className="auth-card panel">
     <h1 className="page-title">Verifiera e-post.</h1>
     {/^[a-f0-9]{64}$/.test(params.token) ? <><p>Ange lösenordet du valde när du registrerade kontot. Om du inte skapade kontot, bekräfta det inte. Använd återställning för att återta din e-postadress.</p><AccountForm kind="verify" token={params.token} returnTo={returnTo} /></> : <p className="notice notice-error">Verifieringslänken är ogiltig.</p>}

@@ -5,7 +5,7 @@ import { assertMembershipOrigin, createMembershipCheckout, MembershipHttpError, 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 const inputSchema = z.object({ planId: z.number().int().positive(), consent: z.literal(true),
-  planRevision: z.string().min(1).max(100), termsRevision: z.string().min(1).max(100) }).strict();
+  planRevision: z.string().min(1).max(100), termsRevision: z.string().min(1).max(100), purificationRevision:z.iso.datetime().nullable().optional() }).strict();
 export async function POST(request: Request) {
   try {
     assertMembershipOrigin(request);

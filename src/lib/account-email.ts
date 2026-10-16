@@ -4,6 +4,7 @@ import { randomToken, tokenHash, hashPassword, verifyPassword } from "./security
 import { emailSchema, passwordSchema } from "./validation";
 import { requireEmailConfiguration, sendEmail } from "./email-provider";
 import { safeAccountReturnTo } from "./account-return";
+import { supabaseAuthRequested } from "./supabase-auth-config";
 
 const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/, "Länken är ogiltig eller har löpt ut.");
 type TokenKind = "verify-email" | "reset-password";
@@ -32,14 +33,21 @@ async function deliverToken(user: User, kind: TokenKind, returnTo?: string) {
   const destination = safeAccountReturnTo(returnTo, "");
   if (destination) url.searchParams.set("returnTo", destination);
   const text = kind === "verify-email"
-    ? `Bekräfta e-postadressen för ditt konto hos Tibb.nu:\n\n${url}\n\nLänken gäller i 24 timmar och behöver ditt registrerade lösenord. Om du inte skapade kontot ska du inte bekräfta det; använd Glömt lösenord på hemsidan för att återta adressen. Dela inte länken.`
-    : `Välj ett nytt lösenord till ditt konto hos Tibb.nu:\n\n${url}\n\nLänken gäller i 30 minuter och kan användas en gång. Återställningen loggar ut alla tidigare sessioner och bekräftar att du äger e-postadressen. Om du inte begärde detta behöver du inte göra något. Dela inte länken.`;
+    ? `Bekräfta e-postadressen för ditt konto hos Slowlax:\n\n${url}\n\nLänken gäller i 24 timmar och behöver ditt registrerade lösenord. Om du inte skapade kontot ska du inte bekräfta det; använd Glömt lösenord på hemsidan för att återta adressen. Dela inte länken.`
+    : `Välj ett nytt lösenord till ditt konto hos Slowlax:\n\n${url}\n\nLänken gäller i 30 minuter och kan användas en gång. Återställningen loggar ut alla tidigare sessioner och bekräftar att du äger e-postadressen. Om du inte begärde detta behöver du inte göra något. Dela inte länken.`;
   // An uncertain response can follow actual acceptance. Keep the hashed link
   // valid until expiry instead of breaking a message already in the recipient's inbox.
-  await sendEmail({ to: user.email, subject: kind === "verify-email" ? "Bekräfta din e-postadress hos Tibb.nu" : "Återställ ditt lösenord hos Tibb.nu", text,
+  await sendEmail({ to: user.email, subject: kind === "verify-email" ? "Bekräfta din e-postadress hos Slowlax" : "Återställ ditt lösenord hos Slowlax", text,
     idempotencyKey: `account-${issued.hash}` });
 }
 export async function sendVerificationEmail(userId: number, returnTo?: string) {
+  if (supabaseAuthRequested()) {
+    const user = await getUser(userId);
+    if (!user) throw new DomainError("Kontot finns inte.");
+    const { resendSupabaseVerification } = await import("./supabase-auth");
+    await resendSupabaseVerification(user.email, returnTo);
+    return;
+  }
   requireEmailConfiguration();
   const user = await getUser(userId);
   if (!user || user.role !== "student") throw new DomainError("Verifiering gäller ditt elevkonto.");
@@ -47,6 +55,12 @@ export async function sendVerificationEmail(userId: number, returnTo?: string) {
   await deliverToken(user, "verify-email", returnTo);
 }
 export async function requestPasswordReset(email: string, returnTo?: string): Promise<string> {
+  if (supabaseAuthRequested()) {
+    const { requestSupabasePasswordReset } = await import("./supabase-auth");
+    try { await requestSupabasePasswordReset(emailSchema.parse(email), returnTo); }
+    catch { /* The request response reveals neither account nor delivery. */ }
+    return RESET_REQUEST_MESSAGE;
+  }
   // Configuration errors are identical for every address and never pretend
   // that an email was sent. Provider failures must not enumerate accounts.
   requireEmailConfiguration();
@@ -58,6 +72,10 @@ export async function requestPasswordReset(email: string, returnTo?: string): Pr
   return RESET_REQUEST_MESSAGE;
 }
 export async function verifyEmail(input: { token: string; password: string }): Promise<User> {
+  if (supabaseAuthRequested()) {
+    const { verifySupabaseEmail } = await import("./supabase-auth");
+    return verifySupabaseEmail(input.token);
+  }
   const token = tokenSchema.parse(input.token);
   const password = z.string().min(1).max(128).parse(input.password);
   return transaction(async () => {
@@ -73,11 +91,15 @@ export async function verifyEmail(input: { token: string; password: string }): P
     return (await getUser(Number(row.id)))!;
   });
 }
-export async function resetPassword(input: { token: string; password: string }): Promise<void> {
+export async function resetPassword(input: { token: string; password: string }): Promise<number> {
+  if (supabaseAuthRequested()) {
+    const { resetSupabasePassword } = await import("./supabase-auth");
+    return resetSupabasePassword(input);
+  }
   const token = tokenSchema.parse(input.token);
   const password = passwordSchema.parse(input.password);
   const passwordHash = hashPassword(password);
-  await transaction(async () => {
+  return transaction(async () => {
     const row = await getDb().prepare(
       "SELECT user_id FROM auth_tokens WHERE token_hash=? AND kind='reset-password' AND expires_at>?",
     ).get(tokenHash(token), new Date().toISOString());
@@ -87,5 +109,6 @@ export async function resetPassword(input: { token: string; password: string }):
       .run(passwordHash, new Date().toISOString(), userId);
     await getDb().prepare("DELETE FROM sessions WHERE user_id=?").run(userId);
     await getDb().prepare("DELETE FROM auth_tokens WHERE user_id=?").run(userId);
+    return userId;
   });
 }

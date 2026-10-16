@@ -20,6 +20,8 @@ import { getStudentCourseLearningStatus } from "@/lib/course-learning-status";
 import { getStudentCourseAccessState } from "@/lib/student-access";
 import { StudentAccessDetails, StudentAccessNotice } from "@/components/learning/student-access-notice";
 import styles from "@/components/learning/portal-learning.module.css";
+import { getCourseCertificateEligibility } from "@/lib/course-certificates";
+import { CourseCertificatePanel } from "@/components/learning/course-certificate-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -32,11 +34,12 @@ export default async function StudentCoursePage({
   const { courseId: rawCourseId } = await params;
   const courseId = Number(rawCourseId);
   if (!Number.isSafeInteger(courseId) || courseId < 1) notFound();
+  const certificateStatus = user.role === "student" ? await getCourseCertificateEligibility(user.id, courseId) : null;
   const course = await getAccessibleCourse(user.id, courseId);
   if (!course) {
     const access = await getStudentCourseAccessState(user.id, courseId);
     if (!access || access.available) notFound();
-    return <StudentAccessNotice access={access} />;
+    return <><StudentAccessNotice access={access} />{certificateStatus?.certificate && <CourseCertificatePanel status={certificateStatus} />}</>;
   }
   const [lessons, completed, learningStatus, access] = await Promise.all([
     getLessonOutline(courseId),
@@ -104,6 +107,7 @@ export default async function StudentCoursePage({
       </div>
       {access?.available && <section className={`panel ${styles.courseDescription}`} aria-label="Din kursåtkomst"><StudentAccessDetails access={access} /></section>}
       <CourseActivityProgress courseId={courseId} status={learningStatus} />
+      {certificateStatus && <CourseCertificatePanel status={certificateStatus} />}
       {course.description && <details className={`panel ${styles.courseDescription}`}><summary>Om kursen</summary><TextContent text={course.description} /></details>}
       <div className="section-heading">
         <h2>Kursens lektioner</h2>
@@ -149,7 +153,7 @@ export default async function StudentCoursePage({
           <BookOpen size={32} />
           <h3>Lektionerna är på väg</h3>
           <p className="muted">
-            Här ser du lektionerna när de lagts till av Tibb.nu.
+            Här ser du lektionerna när de lagts till av Slowlax.
           </p>
         </div>
       )}

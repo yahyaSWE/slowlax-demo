@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, BookOpen, Leaf, Play, Sprout } from "lucide-react";
+import { ArrowUpRight, BookOpen, ChartNoAxesCombined, Play, ShieldCheck } from "lucide-react";
 import {
   contentBlocks,
   contentInlines,
@@ -37,14 +37,16 @@ export function CourseCard({
   href,
   progress,
 }: CourseCardProps) {
-  const illustrations = [Leaf, Sprout, BookOpen];
+  const illustrations = [ChartNoAxesCombined, ShieldCheck, BookOpen];
   const Illustration = illustrations[index % illustrations.length];
   return (
     <Link href={href || `/kurser/${course.slug}`} className="course-card">
-      <div className={`course-art course-art-${index % 3}`}>
+      <div className={`course-art course-art-${index % 3}${course.slug === "bygg-din-egen-halal-pengamaskin" ? " slowlax-course-art" : ""}`}>
+        {course.slug === "bygg-din-egen-halal-pengamaskin" ? <img src="/images/slowlax-course-pengamaskin.png" alt="" /> : <>
         <span className="course-art-ring" />
         <Illustration size={84} strokeWidth={1} aria-hidden="true" />
-        <span className="course-art-label">TIBB AKADEMI</span>
+        <span className="course-art-label">SLOWLAX AKADEMI</span>
+        </>}
         <span className="course-art-badge">
           <Play size={12} fill="currentColor" /> Onlinekurs
         </span>
@@ -84,14 +86,22 @@ type ArticleCardProps = {
 };
 
 export function ArticleCard({ article, index = 0 }: ArticleCardProps) {
+  const archiveImages: Record<string, string> = {
+    "grundlaggande-aktieutbildning": "/images/slowlax-news-intro.jpg",
+    "fordjupning-i-aktieanalys-med-fokus-pa-islamisk-etik": "/images/slowlax-news-analysis.jpg",
+    "islamiska-investeringar": "/images/slowlax-news-islamic.png",
+  };
+  const image = archiveImages[article.slug];
   const styles = ["article-art-olive", "article-art-sand", "article-art-sage"];
-  const icons = [Sprout, Leaf, BookOpen];
+  const icons = [ChartNoAxesCombined, ShieldCheck, BookOpen];
   const Illustration = icons[index % icons.length];
   return (
     <Link href={`/artiklar/${article.slug}`} className="article-card">
-      <div className={`article-art ${styles[index % styles.length]}`}>
+      <div className={`article-art ${styles[index % styles.length]}${image ? " slowlax-article-art" : ""}`}>
+        {image ? <img src={image} alt="" /> : <>
         <Illustration size={64} strokeWidth={1} aria-hidden="true" />
-        <span>TIBB JOURNAL</span>
+        <span>SLOWLAX NYHETER</span>
+        </>}
       </div>
       <div className="article-card-body">
         <p className="eyebrow">

@@ -99,7 +99,7 @@ test("manual and paid memberships union across groups; revocation and expiry pre
 test("only paid current active or past_due subscriptions grant access and sales pause does not revoke members", async () => {
   const { courseId } = await courseFixture();
   const groupId = await saveGroup(admin.id, undefined, groupInput([courseId]));
-  const { subscriptionId } = await paidFixture(groupId, "active", null);
+  const { subscriptionId, planId } = await paidFixture(groupId, "active", null);
   assert.equal(await hasCourseAccess(member.id, courseId), false);
   for (const status of ["trialing", "incomplete", "unpaid", "canceled", "paused"]) {
     await getDb().prepare("UPDATE membership_subscriptions SET status=?,paid_until=? WHERE stripe_id=?").run(status, future, subscriptionId);
@@ -110,7 +110,7 @@ test("only paid current active or past_due subscriptions grant access and sales 
     assert.equal(await hasCourseAccess(member.id, courseId), true, status);
   }
   assert.equal((await getMembershipSettings()).salesEnabled, false);
-  assert.deepEqual(await getPublicPlans(), []);
+  assert.ok((await getPublicPlans()).some(plan => plan.id === planId));
   assert.ok(await getAccessibleGroup(member.id, groupId));
   await getDb().prepare("UPDATE membership_subscriptions SET blocked=1 WHERE stripe_id=?").run(subscriptionId);
   assert.equal(await hasCourseAccess(member.id, courseId), false);
@@ -211,7 +211,7 @@ test("admin CAS prevents stale group/plan/settings writes and billed plans retai
   const { planId } = await paidFixture(groupId);
   const otherGroup = await saveGroup(admin.id, undefined, groupInput());
   const plan = (await getAdminPlan(admin.id, planId))!;
-  await assert.rejects(savePlan(admin.id, planId, { ...plan, groupId: otherGroup, expectedUpdatedAt: plan.updatedAt }), /betalning/);
+  await assert.rejects(savePlan(admin.id, planId, { ...plan, groupId: otherGroup, groupIds: [otherGroup], expectedUpdatedAt: plan.updatedAt }), /betalning/);
   await savePlan(admin.id, planId, { ...plan, priceOre: 24900, expectedUpdatedAt: plan.updatedAt });
   await assert.rejects(savePlan(admin.id, planId, { ...plan, expectedUpdatedAt: plan.updatedAt }), /ändrats/);
   assert.equal(Number((await getDb().prepare("SELECT price_ore FROM membership_subscriptions WHERE plan_id=?").get(planId))!.price_ore), 19900);
@@ -228,7 +228,7 @@ test("admin CAS prevents stale group/plan/settings writes and billed plans retai
   } finally { await getDb().prepare("UPDATE users SET role='admin' WHERE id=?").run(admin.id); }
 });
 
-test("sales activation validates terms, contact and publication; public plans disappear with hidden linked content", async () => {
+test("published membership offers are visible before sales activation; hidden linked content stays private", async () => {
   const keys = ["STRIPE_SECRET_KEY", "MEMBERSHIP_STRIPE_WEBHOOK_SECRET", "MEMBERSHIP_STRIPE_PORTAL_CONFIGURATION_ID", "APP_URL"] as const;
   const environment = new Map(keys.map(key => [key, process.env[key]]));
   const oldEmail = String((await getDb().prepare("SELECT email FROM settings WHERE id=1").get())!.email);
@@ -247,6 +247,10 @@ test("sales activation validates terms, contact and publication; public plans di
     const groupId = await saveGroup(admin.id, undefined, groupInput([courseId]));
     const planId = await savePlan(admin.id, undefined, planInput(groupId));
     const plan = (await getAdminPlan(admin.id, planId))!;
+    assert.equal((await getMembershipSettings()).salesEnabled, false);
+    assert.equal((await getPublicPlan(plan.slug))!.id, planId);
+    assert.deepEqual((await getPublicPlanCourses(planId)).map(course => course.id), [courseId]);
+    await assert.rejects(savePlan(admin.id, undefined, planInput(groupId, { slug: "bas" })), /webbadress/);
     await saveMembershipSettings(admin.id, enabled);
     assert.equal((await getPublicPlan(plan.slug))!.id, planId);
     assert.deepEqual((await getPublicPlanCourses(planId)).map(course => course.id), [courseId]);

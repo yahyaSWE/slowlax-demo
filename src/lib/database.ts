@@ -15,7 +15,8 @@ import {
   COURSE_ACTIVITY_SCHEMA,
   ACCOUNT_EMAIL_SCHEMA,
 } from "./schema";
-import { databaseConfigured } from "./database-config";
+import { databaseConfigured, databaseProvider } from "./database-config";
+import { PostgresDatabaseAdapter } from "./postgres-database";
 import { SHOP_SCHEMA } from "./shop-schema";
 import { SHOP_IMAGE_SCHEMA } from "./shop-image-schema";
 import { SHOP_EMAIL_SCHEMA } from "./shop-email-schema";
@@ -25,12 +26,19 @@ import { MEMBERSHIP_SCHEMA } from "./membership-schema";
 import { MEMBERSHIP_UPLOAD_SCHEMA } from "./membership-upload-schema";
 import { MEMBERSHIP_BILLING_SCHEMA } from "./membership-billing-schema";
 import { COURSE_PURCHASE_SCHEMA } from "./course-purchase-schema";
+import { COURSE_BUNDLES_SCHEMA } from "./course-bundles-schema";
+import { KIT_NEWSLETTER_SCHEMA } from "./kit-newsletter-schema";
+import { COURSE_CERTIFICATES_SCHEMA } from "./course-certificates-schema";
+import { PURIFICATION_SCHEMA } from "./purification-schema";
+import { PURIFICATION_BILLING_SCHEMA } from "./purification-billing-schema";
+import { FREE_MEMBERSHIP_SCHEMA } from "./free-membership-schema";
+import slowlaxArticles from "./slowlax-articles.json";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
   constructor() {
     super(
-      "Databasen är inte konfigurerad. Lägg till TURSO_DATABASE_URL och TURSO_AUTH_TOKEN i Vercels miljövariabler och gör en ny deployment.",
+      "Databasen är inte konfigurerad. Ange en fungerande DATABASE_URL för PostgreSQL, eller TURSO_DATABASE_URL och TURSO_AUTH_TOKEN. Supabase-inloggning kräver PostgreSQL. Konfigurera bara en databasleverantör.",
     );
   }
 }
@@ -135,7 +143,7 @@ export class DatabaseAdapter {
       throw new Error("Databasens schemaversion kunde inte läsas.");
     if (version > SCHEMA_VERSION)
       throw new Error(
-        "Databasen har en nyare schemaversion. Använd den senaste publicerade versionen av Tibb.nu.",
+        "Databasen har en nyare schemaversion. Använd den senaste publicerade versionen av Slowlax.",
       );
     return version === SCHEMA_VERSION;
   }
@@ -162,6 +170,9 @@ export class DatabaseAdapter {
         const userColumns = await tx.execute("PRAGMA table_info(users)");
         if (!userColumns.rows.some((row) => row.name === "email_verified_at"))
           await tx.execute("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+        if (!userColumns.rows.some((row) => row.name === "supabase_id"))
+          await tx.execute("ALTER TABLE users ADD COLUMN supabase_id TEXT");
+        await tx.execute("CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_id ON users(supabase_id)");
         await tx.executeMultiple(ACCOUNT_EMAIL_SCHEMA);
         await tx.executeMultiple(SHOP_IMAGE_SCHEMA);
         await tx.executeMultiple(SHOP_SCHEMA);
@@ -184,6 +195,28 @@ export class DatabaseAdapter {
         await tx.executeMultiple(MEMBERSHIP_UPLOAD_SCHEMA);
         await tx.executeMultiple(MEMBERSHIP_BILLING_SCHEMA);
         await tx.executeMultiple(COURSE_PURCHASE_SCHEMA);
+        await tx.executeMultiple(COURSE_BUNDLES_SCHEMA);
+        await tx.executeMultiple(KIT_NEWSLETTER_SCHEMA);
+        await tx.executeMultiple(FREE_MEMBERSHIP_SCHEMA);
+        // /medlemskap/bas now belongs to the free membership. Preserve legacy
+        // paid contracts and their immutable checkout slugs while giving only
+        // the editable current plan a fresh, collision-free URL and revision.
+        const legacyBasPlans=await tx.execute("SELECT id,updated_at FROM membership_plans WHERE slug='bas'");
+        for(const plan of legacyBasPlans.rows) {
+          const base=`bas-betalt-${Number(plan.id)}`;
+          let candidate=base,suffix=1;
+          while((await tx.execute({sql:"SELECT id FROM membership_plans WHERE slug=? AND id<>?",args:[candidate,Number(plan.id)]})).rows.length)
+            candidate=`${base}-${++suffix}`;
+          const previous=Date.parse(String(plan.updated_at));
+          const revision=new Date(Math.max(Date.now(),Number.isFinite(previous)?previous+1:0)).toISOString();
+          await tx.execute({sql:"UPDATE membership_plans SET slug=?,updated_at=? WHERE id=?",args:[candidate,revision,Number(plan.id)]});
+        }
+        // v15 extends the access predicate with Bas. Existing IF NOT EXISTS
+        // certificate guards must be recreated to recognize the new source.
+        await tx.execute("DROP TRIGGER IF EXISTS course_certificate_issuance_reference");
+        await tx.executeMultiple(COURSE_CERTIFICATES_SCHEMA);
+        await tx.executeMultiple(PURIFICATION_SCHEMA);
+        await tx.executeMultiple(PURIFICATION_BILLING_SCHEMA);
         const uploadRequestColumns = await tx.execute(
           "PRAGMA table_info(upload_requests)",
         );
@@ -266,54 +299,42 @@ export class DatabaseAdapter {
     }
   }
   private async seed(tx: Transaction) {
+    // Only new installations receive these public Slowlax facts. Existing
+    // installations keep their content, settings and account history intact.
     await tx.execute({
-      sql: "INSERT INTO treatments(name,description,duration_minutes,price_ore,active) VALUES(?,?,?,?,0)",
-      args: [
-        "Första konsultation",
-        "Exempelbehandling. Anpassa beskrivning, längd och pris innan du aktiverar behandlingen.",
-        60,
-        85000,
-      ],
+      sql: "UPDATE settings SET site_name=?,email=?,location='',pay_on_site=0,stripe_enabled=0 WHERE id=1",
+      args: ["Slowlax", "info@slowlax.se"],
     });
-    await tx.execute({
-      sql: "INSERT INTO treatments(name,description,duration_minutes,price_ore,active) VALUES(?,?,?,?,0)",
-      args: [
-        "Återbesök",
-        "Exempelbehandling. Anpassa innehållet i admin innan du aktiverar behandlingen.",
-        45,
-        65000,
-      ],
-    });
+    await tx.execute("UPDATE practitioners SET name='Slowlax',active=0 WHERE id=1");
     const now = new Date().toISOString();
+    for (const article of slowlaxArticles) {
+      await tx.execute({
+        sql: "INSERT INTO articles(title,slug,excerpt,body,published,created_at,updated_at) VALUES(?,?,?,?,1,?,?)",
+        args: [article.title, article.slug, article.excerpt, article.body, article.publishedAt, article.publishedAt],
+      });
+    }
     await tx.execute({
-      sql: "INSERT INTO articles(title,slug,excerpt,body,published,created_at,updated_at) VALUES(?,?,?,?,0,?,?)",
+      sql: "INSERT INTO courses(title,slug,description,price_ore,published,created_at,updated_at) VALUES(?,?,?,0,1,?,?)",
       args: [
-        "Välkommen till Tibb.nu",
-        "valkommen-till-tibb",
-        "En introduktion till verksamhetens perspektiv.",
-        "Här kan du presentera ditt arbete med klassisk kinesisk medicin i ljuset av den Profetiska vägledningen. Detta är ett utkast som du kan redigera och publicera från admin.",
+        "Bygg din egen Halal-pengamaskin",
+        "bygg-din-egen-halal-pengamaskin",
+        "En kurs från Slowlax.",
         now,
         now,
       ],
     });
-    const course = await tx.execute({
-      sql: "INSERT INTO courses(title,slug,description,price_ore,published,created_at,updated_at) VALUES(?,?,?,0,0,?,?)",
-      args: [
-        "Introduktion till Tibb",
-        "introduktion-till-tibb",
-        "Ett redigerbart kursutkast. Lägg till dina lektioner och publicera när kursen är klar.",
-        now,
-        now,
-      ],
-    });
-    await tx.execute({
-      sql: "INSERT INTO lessons(course_id,title,body,position) VALUES(?,?,?,1)",
-      args: [
-        Number(course.lastInsertRowid),
-        "Välkommen",
-        "Skriv din introduktion här. Du kan lägga till text, videolänkar och kursmaterial.",
-      ],
-    });
+    // The original lesson content requires a WordPress login and is not
+    // available in Git. Do not invent lessons or promise unverified access.
+    // The source's USD plan prices cannot be inserted into this SEK checkout.
+    for (const [name, slug, description] of [
+      ["Bas", "bas", "Communityuppdateringar från Slowlax."],
+      ["Premium", "premium", "Alla tillgängliga kurser och exklusiva uppdateringar."],
+    ]) {
+      await tx.execute({
+        sql: "INSERT INTO membership_groups(name,slug,description,published,created_at,updated_at) VALUES(?,?,?,0,?,?)",
+        args: [name, slug, description, now, now],
+      });
+    }
     await tx.execute("INSERT INTO app_meta(key,value) VALUES('seeded','1')");
   }
   private async execute(sql: string, args: InValue[]): Promise<ResultSet> {
@@ -373,10 +394,20 @@ export class DatabaseAdapter {
     this.readyPromise = undefined;
   }
 }
-let database: DatabaseAdapter | undefined;
-export function getDb(): DatabaseAdapter {
+let database: DatabaseAdapter | PostgresDatabaseAdapter | undefined;
+let selectedProvider: ReturnType<typeof databaseProvider> | undefined;
+export function getDb(): DatabaseAdapter | PostgresDatabaseAdapter {
   if (!databaseConfigured()) throw new DatabaseConfigurationError();
-  return (database ??= new DatabaseAdapter());
+  const provider = databaseProvider();
+  // Next dev can reload environment variables without replacing this module.
+  // Once the operator activates cutover, never keep using the old SQLite DB.
+  if (database && selectedProvider !== provider) {
+    const previous = database;
+    database = undefined;
+    void previous.close().catch(() => {});
+  }
+  selectedProvider = provider;
+  return (database ??= provider === "postgres" ? new PostgresDatabaseAdapter() : new DatabaseAdapter());
 }
 export function transaction<T>(work: () => T | Promise<T>): Promise<T> {
   return getDb().transaction(work);

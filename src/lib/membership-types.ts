@@ -9,6 +9,7 @@ export type MembershipGroup = {
 };
 export type MembershipPlan = {
   id: number; groupId: number; groupName: string; name: string; slug: string;
+  groupIds: number[]; groups: { id: number; name: string }[];
   description: string; priceOre: number; vatPercent: 0 | 6 | 12 | 25;
   interval: "month" | "year"; published: boolean; createdAt: string; updatedAt: string;
 };
@@ -32,7 +33,7 @@ export type MembershipGroupInput = {
   expectedUpdatedAt?: string;
 };
 export type MembershipPlanInput = {
-  groupId: number; name: string; slug: string; description: string; priceOre: number;
+  groupId: number; groupIds?: number[]; name: string; slug: string; description: string; priceOre: number;
   vatPercent: 0 | 6 | 12 | 25; interval: "month" | "year"; published: boolean;
   expectedUpdatedAt?: string;
 };

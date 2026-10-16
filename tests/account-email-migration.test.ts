@@ -38,7 +38,7 @@ test("version 3 adds ownership and mail tables without auto-verifying old users 
     for (const table of tables) {
       const expected = before.get(table)!;
       assert.deepEqual((await client.execute(`SELECT * FROM ${table}`)).rows,
-        table === "users" ? expected.map((row) => ({ ...row, email_verified_at: null })) : expected);
+        table === "users" ? expected.map((row) => ({ ...row, email_verified_at: null, supabase_id: null })) : expected);
     }
     assert.equal((await client.execute("PRAGMA user_version")).rows[0].user_version, SCHEMA_VERSION);
     assert.equal((await client.execute("SELECT value FROM app_meta WHERE key='preserve-custom'")).rows[0].value, "legacy-marker");

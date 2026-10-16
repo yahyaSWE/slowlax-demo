@@ -5,18 +5,20 @@ import { getDb, transaction } from "./database";
 import { getCoursePurchaseOffer, hasPermanentCourseAccess, type CoursePurchaseOffer } from "./course-sales";
 import { appUrl, getStripe, stripeReady } from "./stripe";
 import { getStudentGroupAccessState } from "./student-access";
+import { checkPurificationRevision,snapshotBundlePurification,applyBundlePurification } from "./purification-payment-hooks";
+import { OneTimePaymentVerificationError as CoursePurchaseVerificationError, assertOneTimeMetadata, assertOneTimeTaxRate, assertOneTimeCheckout, verifyOneTimePayment, oneTimeCheckoutRedirect, type OneTimePaymentContract } from "./one-time-stripe-payment";
 
 type Row = Record<string, unknown>;
 const str = (value: unknown) => String(value ?? "");
 const num = (value: unknown) => Number(value);
 const now = () => new Date().toISOString();
 const identifier = (value: string | { id: string } | null | undefined) => typeof value === "string" ? value : value?.id;
-const APPLICATION = "tibb.nu";
+const APPLICATION = "slowlax.se";
 const INTEGRATION = "course-purchase";
 const LEASE_SECONDS = 180;
 const CHECKOUT_MINUTES = 60;
 const API_OPTIONS = { timeout: 10000, maxNetworkRetries: 1 };
-class CoursePurchaseVerificationError extends Error {}
+
 
 export class CoursePurchaseHttpError extends DomainError {
   constructor(message: string, readonly status: number) { super(message); }
@@ -69,7 +71,7 @@ async function verifiedStudent(userId: number) {
     throw new CoursePurchaseHttpError("Logga in med ett verifierat elevkonto för att köpa en kurs.", 403);
   return user;
 }
-export type CoursePurchaseConsent = { consent: true; courseRevision: string; settingsRevision: string; termsRevision: string };
+export type CoursePurchaseConsent = { consent: true; courseRevision: string; settingsRevision: string; termsRevision: string; purificationRevision?:string|null };
 function matchesRevision(offer: CoursePurchaseOffer, consent: CoursePurchaseConsent) {
   if (consent.consent !== true || consent.courseRevision !== offer.courseRevision ||
     consent.settingsRevision !== offer.settingsRevision || consent.termsRevision !== offer.termsRevision)
@@ -79,6 +81,7 @@ async function purchasableCourse(courseId: number, consent: CoursePurchaseConsen
   const offer = await getCoursePurchaseOffer(courseId);
   if (!offer || !offer.buyEnabled || !coursePurchaseReady()) throw new DomainError("Kursen kan inte köpas just nu.");
   matchesRevision(offer, consent);
+  await checkPurificationRevision('bundle',courseId,consent.purificationRevision);
   return offer;
 }
 function metadata(attempt: Row) {
@@ -88,9 +91,13 @@ function metadata(attempt: Row) {
 function ownMetadata(value: Stripe.Metadata | null | undefined) {
   return value?.application === APPLICATION && value.integration === INTEGRATION;
 }
+function paymentContract(attempt: Row): OneTimePaymentContract {
+  return { id: str(attempt.id), customerId: str(attempt.customer_id), sessionId: attempt.session_id ? str(attempt.session_id) : null,
+    taxRateId: str(attempt.tax_rate_id), amountOre: num(attempt.price_ore), vatPercent: num(attempt.vat_percent),
+    createdAt: str(attempt.created_at), metadata: metadata(attempt) };
+}
 function assertMetadata(value: Stripe.Metadata | null | undefined, attempt: Row) {
-  if (Object.entries(metadata(attempt)).some(([key, expected]) => value?.[key] !== expected))
-    throw new CoursePurchaseVerificationError("Course payment ownership mismatch");
+  assertOneTimeMetadata(value, metadata(attempt));
 }
 async function reserveAttempt(userId: number, courseId: number, consent: CoursePurchaseConsent) {
   return transaction(async () => {
@@ -115,7 +122,12 @@ async function reserveAttempt(userId: number, courseId: number, consent: CourseP
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'creating',?,?,?)`)
         .run(attemptId, userId, courseId, offer.title, offer.slug, offer.courseRevision, offer.settingsRevision, offer.terms, offer.priceOre,
           offer.vatPercent, offer.groupId, offer.groupName, offer.groupAccessDays, new Date(Date.now() + CHECKOUT_MINUTES * 60000).toISOString(), timestamp, timestamp);
+      for (const course of offer.courses) await getDb().prepare("INSERT INTO course_purchase_attempt_courses(attempt_id,course_id,title,slug) VALUES(?,?,?,?)")
+        .run(attemptId, course.id, course.title, course.slug);
+      for (const group of offer.groups) await getDb().prepare("INSERT INTO course_purchase_attempt_groups(attempt_id,group_id,group_name,access_days) VALUES(?,?,?,?)")
+        .run(attemptId, group.id, group.name, group.accessDays);
       attempt = (await getDb().prepare("SELECT * FROM course_purchase_attempts WHERE id=?").get(attemptId))!;
+      await snapshotBundlePurification(attemptId,courseId);
     }
     const token = randomBytes(16).toString("hex");
     await getDb().prepare("UPDATE course_purchase_attempts SET lease_token=?,lease_until=?,updated_at=? WHERE id=?")
@@ -146,10 +158,7 @@ async function ensureCustomer(userId: number, stripe: Stripe) {
   return customer.id;
 }
 function assertTaxRate(rate: Stripe.TaxRate, attempt: Row, newCheckout = false) {
-  if (rate.id !== str(attempt.tax_rate_id) || rate.percentage !== num(attempt.vat_percent) || !rate.inclusive ||
-    rate.country !== "SE" || rate.tax_type !== "vat" || (newCheckout && !rate.active))
-    throw new CoursePurchaseVerificationError("Course VAT rate mismatch");
-  assertMetadata(rate.metadata, attempt);
+  assertOneTimeTaxRate(rate, paymentContract(attempt), newCheckout);
 }
 async function ensureTaxRate(attempt: Row, token: string, stripe: Stripe) {
   const rate = attempt.tax_rate_id
@@ -167,30 +176,9 @@ async function ensureTaxRate(attempt: Row, token: string, stripe: Stripe) {
   return rate.id;
 }
 function assertSession(session: Stripe.Checkout.Session, attempt: Row) {
-  assertMetadata(session.metadata, attempt);
-  const line = session.line_items?.data[0], taxAmount = Math.round(num(attempt.price_ore) * num(attempt.vat_percent) / (100 + num(attempt.vat_percent)));
-  if (session.mode !== "payment" || session.client_reference_id !== str(attempt.id) || identifier(session.customer) !== str(attempt.customer_id) ||
-    (attempt.session_id && session.id !== str(attempt.session_id)) || session.currency !== "sek" || session.amount_total !== num(attempt.price_ore) ||
-    session.automatic_tax?.enabled || session.allow_promotion_codes || session.total_details?.amount_discount || session.total_details?.amount_shipping ||
-    !line || session.line_items?.has_more || session.line_items?.data.length !== 1 || line.quantity !== 1 ||
-    line.amount_total !== num(attempt.price_ore) || line.amount_discount !== 0 || !line.price || line.price.currency !== "sek" ||
-    line.price.unit_amount !== num(attempt.price_ore) || line.price.tax_behavior !== "inclusive" || line.price.recurring ||
-    line.amount_tax !== taxAmount || session.total_details?.amount_tax !== taxAmount ||
-    (taxAmount > 0 && line.taxes?.length !== 1) || (line.taxes?.length ?? 0) > 1)
-    throw new CoursePurchaseVerificationError("Course checkout contract mismatch");
-  for (const tax of line.taxes ?? []) {
-    if (tax.amount !== taxAmount || tax.taxability_reason === "customer_exempt" || tax.taxability_reason === "reverse_charge")
-      throw new CoursePurchaseVerificationError("Course checkout VAT amount mismatch");
-    assertTaxRate(tax.rate, attempt);
-  }
+  assertOneTimeCheckout(session, paymentContract(attempt));
 }
-function checkoutRedirect(value: string | null) {
-  if (!value) throw new Error("Stripe redirect is missing");
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com" || url.port || url.username || url.password)
-    throw new Error("Stripe redirect is invalid");
-  return value;
-}
+const checkoutRedirect = oneTimeCheckoutRedirect;
 export async function createCoursePurchaseCheckout(userId: number, courseId: number, consent: CoursePurchaseConsent) {
   const stripe = getStripe();
   const { attempt, token, fresh } = await reserveAttempt(userId, courseId, consent);
@@ -301,17 +289,34 @@ export async function cancelCoursePurchaseCheckout(userId: number, courseId: num
   }
 }
 
-export type PendingCoursePurchase = { courseId: number; title: string; slug: string; priceOre: number; expiresAt: string; canCancel: boolean };
+export type PendingCoursePurchase = { courseId: number; title: string; slug: string; priceOre: number; expiresAt: string; canCancel: boolean; isBundle: boolean };
 export async function getUserPendingCoursePurchases(userId: number): Promise<PendingCoursePurchase[]> {
   await verifiedStudent(userId);
-  return (await getDb().prepare(`SELECT a.*,c.slug AS current_slug FROM course_purchase_attempts a JOIN courses c ON c.id=a.course_id
+  return (await getDb().prepare(`SELECT a.*,c.slug AS current_slug,EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=a.course_id) AS is_bundle FROM course_purchase_attempts a JOIN courses c ON c.id=a.course_id
     WHERE a.user_id=? AND a.status IN ('creating','open','completed') ORDER BY a.created_at DESC`).all(userId))
     .map(row => ({ courseId: num(row.course_id), title: str(row.course_title), slug: str(row.current_slug), priceOre: num(row.price_ore),
-      expiresAt: str(row.expires_at), canCancel: row.status !== "completed" }));
+      expiresAt: str(row.expires_at), canCancel: row.status !== "completed", isBundle: !!row.is_bundle }));
+}
+export type PurchaseCourse = { id: number; title: string; slug: string; available: boolean };
+export type PurchaseGroup = { id: number; name: string; expiresAt: string | null; available: boolean };
+async function purchaseContents(attemptId: string, courseId: number, userId?: number) {
+  const isBundle = !!await getDb().prepare("SELECT course_id FROM course_bundles WHERE course_id=?").get(courseId);
+  let courseRows = await getDb().prepare(`SELECT s.course_id AS id,s.title,c.slug FROM course_purchase_attempt_courses s JOIN courses c ON c.id=s.course_id WHERE s.attempt_id=? ORDER BY s.title,s.course_id`).all(attemptId);
+  if (!courseRows.length) courseRows = await getDb().prepare("SELECT id,title,slug FROM courses WHERE id=?").all(courseId);
+  if (isBundle) courseRows = courseRows.filter(row => num(row.id) !== courseId);
+  let groupRows = await getDb().prepare(`SELECT s.group_id AS id,s.group_name AS name,s.access_days,p.paid_at,NULL AS expires_at FROM course_purchase_attempt_groups s
+    LEFT JOIN course_purchases p ON p.attempt_id=s.attempt_id WHERE s.attempt_id=? ORDER BY s.group_name,s.group_id`).all(attemptId);
+  if (!groupRows.length) groupRows = await getDb().prepare(`SELECT a.group_id AS id,a.group_name AS name,NULL AS access_days,p.paid_at,p.group_expires_at AS expires_at FROM course_purchase_attempts a
+    LEFT JOIN course_purchases p ON p.attempt_id=a.id WHERE a.id=? AND a.group_id IS NOT NULL`).all(attemptId);
+  const courses: PurchaseCourse[] = await Promise.all(courseRows.map(async row => ({ id: num(row.id), title: str(row.title), slug: str(row.slug), available: userId ? await hasCourseAccess(userId, num(row.id)) : false })));
+  const groups: PurchaseGroup[] = await Promise.all(groupRows.map(async row => ({ id: num(row.id), name: str(row.name),
+    expiresAt: row.access_days != null && row.paid_at ? new Date(Date.parse(str(row.paid_at)) + num(row.access_days) * 86400000).toISOString() : row.expires_at ? str(row.expires_at) : null,
+    available: userId ? !!(await getStudentGroupAccessState(userId, num(row.id)))?.available : false })));
+  return { isBundle, courses, groups };
 }
 export type CoursePurchaseConfirmation = { courseId: number; title: string; slug: string; groupId: number | null; groupName: string | null;
   groupExpiresAt: string | null; priceOre: number; status: "paid" | "pending" | "cancelled" | "blocked"; confirmed: boolean;
-  courseAvailable: boolean; groupAvailable: boolean };
+  courseAvailable: boolean; groupAvailable: boolean; isBundle: boolean; courses: PurchaseCourse[]; groups: PurchaseGroup[] };
 export async function getCoursePurchaseConfirmation(userId: number, sessionId: string): Promise<CoursePurchaseConfirmation | null> {
   await verifiedStudent(userId);
   if (!/^cs_[A-Za-z0-9_]{1,200}$/.test(sessionId)) return null;
@@ -320,32 +325,34 @@ export async function getCoursePurchaseConfirmation(userId: number, sessionId: s
     WHERE a.user_id=? AND a.session_id=?`).get(userId, sessionId);
   if (!row) return null;
   const status = row.revoked ? "blocked" : row.purchase_id && row.status === "paid" ? "paid" : ["expired", "cancelled"].includes(str(row.status)) ? "cancelled" : "pending";
-  return { courseId: num(row.course_id), title: str(row.course_title), slug: str(row.current_slug), groupId: row.group_id === null ? null : num(row.group_id),
+  const contents = await purchaseContents(str(row.id), num(row.course_id), userId);
+  return { ...contents, courseId: num(row.course_id), title: str(row.course_title), slug: str(row.current_slug), groupId: row.group_id === null ? null : num(row.group_id),
     groupName: row.group_name === null ? null : str(row.group_name), groupExpiresAt: row.group_expires_at ? str(row.group_expires_at) : null,
-    priceOre: num(row.price_ore), status, confirmed: status === "paid", courseAvailable: await hasCourseAccess(userId, num(row.course_id)),
-    groupAvailable: row.group_id !== null && !!(await getStudentGroupAccessState(userId, num(row.group_id)))?.available };
+    priceOre: num(row.price_ore), status, confirmed: status === "paid", courseAvailable: contents.courses.some(course => course.available),
+    groupAvailable: contents.groups.some(group => group.available) };
 }
 export type CoursePurchaseView = { id: string; courseId: number; title: string; slug: string; name: string; email: string;
   groupId: number | null; groupName: string | null; groupExpiresAt: string | null; priceOre: number; vatPercent: number;
-  paidAt: string; revoked: boolean; revocationReason: string | null; terms: string; courseAvailable?: boolean; groupAvailable?: boolean };
+  paidAt: string; revoked: boolean; revocationReason: string | null; terms: string; courseAvailable?: boolean; groupAvailable?: boolean;
+  isBundle: boolean; courses: PurchaseCourse[]; groups: PurchaseGroup[] };
 const PURCHASE_VIEW = `SELECT p.*,a.course_title,c.slug AS current_slug,a.group_name,a.terms,u.name,u.email FROM course_purchases p
   JOIN course_purchase_attempts a ON a.id=p.attempt_id JOIN courses c ON c.id=p.course_id JOIN users u ON u.id=p.user_id`;
-function purchaseView(row: Row): CoursePurchaseView {
-  return { id: str(row.id), courseId: num(row.course_id), title: str(row.course_title), slug: str(row.current_slug), name: str(row.name), email: str(row.email),
+async function purchaseView(row: Row, userId?: number): Promise<CoursePurchaseView> {
+  return { ...await purchaseContents(str(row.attempt_id), num(row.course_id), userId), id: str(row.id), courseId: num(row.course_id), title: str(row.course_title), slug: str(row.current_slug), name: str(row.name), email: str(row.email),
     groupId: row.group_id === null ? null : num(row.group_id), groupName: row.group_name === null ? null : str(row.group_name),
     groupExpiresAt: row.group_expires_at ? str(row.group_expires_at) : null, priceOre: num(row.price_ore), vatPercent: num(row.vat_percent),
     paidAt: str(row.paid_at), revoked: !!row.revoked, revocationReason: row.revocation_reason ? str(row.revocation_reason) : null, terms: str(row.terms) };
 }
 export async function getAdminCoursePurchases(actorId: number, courseId?: number): Promise<CoursePurchaseView[]> {
   if ((await getUser(actorId))?.role !== "admin") throw new DomainError("Du har inte tillgång till administrationen.");
-  return (await getDb().prepare(`${PURCHASE_VIEW} ${courseId === undefined ? "" : "WHERE p.course_id=?"} ORDER BY p.paid_at DESC`).all(...courseId === undefined ? [] : [courseId])).map(purchaseView);
+  return Promise.all((await getDb().prepare(`${PURCHASE_VIEW} ${courseId === undefined ? "" : "WHERE p.course_id=? OR EXISTS(SELECT 1 FROM course_purchase_attempt_courses sc WHERE sc.attempt_id=p.attempt_id AND sc.course_id=?)"} ORDER BY p.paid_at DESC`).all(...courseId === undefined ? [] : [courseId, courseId])).map(row => purchaseView(row)));
 }
 export async function getUserCoursePurchases(userId: number): Promise<CoursePurchaseView[]> {
   await verifiedStudent(userId);
-  const purchases = (await getDb().prepare(`${PURCHASE_VIEW} WHERE p.user_id=? ORDER BY p.paid_at DESC`).all(userId)).map(purchaseView);
+  const purchases = await Promise.all((await getDb().prepare(`${PURCHASE_VIEW} WHERE p.user_id=? ORDER BY p.paid_at DESC`).all(userId)).map(row => purchaseView(row, userId)));
   return Promise.all(purchases.map(async purchase => ({ ...purchase,
-    courseAvailable: await hasCourseAccess(userId, purchase.courseId),
-    groupAvailable: purchase.groupId !== null && !!(await getStudentGroupAccessState(userId, purchase.groupId))?.available,
+    courseAvailable: purchase.courses.some(course => course.available),
+    groupAvailable: purchase.groups.some(group => group.available),
   })));
 }
 
@@ -376,25 +383,7 @@ async function boundAttempt(session: Stripe.Checkout.Session) {
   return attempt;
 }
 async function verifiedPayment(session: Stripe.Checkout.Session, attempt: Row, stripe: Stripe) {
-  if (session.status !== "complete" || session.payment_status !== "paid") return null;
-  const intentId = identifier(session.payment_intent);
-  if (!intentId) throw new CoursePurchaseVerificationError("Paid course checkout has no PaymentIntent");
-  const intent = await stripe.paymentIntents.retrieve(intentId, {}, API_OPTIONS);
-  assertMetadata(intent.metadata, attempt);
-  if (intent.id !== intentId || intent.status !== "succeeded" || intent.currency !== "sek" || intent.amount !== num(attempt.price_ore) ||
-    intent.amount_received !== num(attempt.price_ore) || identifier(intent.customer) !== str(attempt.customer_id))
-    throw new CoursePurchaseVerificationError("Course PaymentIntent does not match accepted contract");
-  const chargeId = identifier(intent.latest_charge);
-  if (!chargeId) throw new CoursePurchaseVerificationError("Course PaymentIntent has no successful charge");
-  const charge = await stripe.charges.retrieve(chargeId, {}, API_OPTIONS);
-  assertMetadata(charge.metadata, attempt);
-  if (charge.id !== chargeId || identifier(charge.payment_intent) !== intent.id || charge.status !== "succeeded" || !charge.paid || !charge.captured ||
-    charge.currency !== "sek" || charge.amount !== num(attempt.price_ore) || charge.amount_captured !== num(attempt.price_ore) ||
-    identifier(charge.customer) !== str(attempt.customer_id) || !Number.isSafeInteger(charge.created) ||
-    charge.created > Math.floor(Date.now() / 1000) + 300 || charge.created < Math.floor(Date.parse(str(attempt.created_at)) / 1000) - 300)
-    throw new CoursePurchaseVerificationError("Course charge does not match accepted contract");
-  return { intentId, chargeId, paidAt: new Date(charge.created * 1000).toISOString(),
-    blocked: charge.refunded || charge.amount_refunded >= charge.amount || charge.disputed };
+  return verifyOneTimePayment(session, paymentContract(attempt), stripe);
 }
 async function reconcileSession(sessionId: string, event: Stripe.Event, stripe: Stripe, dispute?: Stripe.Dispute) {
   let session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ["line_items"] }, API_OPTIONS);
@@ -447,6 +436,7 @@ async function reconcileSession(sessionId: string, event: Stripe.Event, stripe: 
         const stored = await getDb().prepare("SELECT * FROM course_purchases WHERE attempt_id=?").get(str(attempt.id));
         if (!stored || str(stored.session_id) !== session.id || str(stored.payment_intent_id) !== paid.intentId || str(stored.charge_id) !== paid.chargeId)
           throw new CoursePurchaseVerificationError("Course purchase source changed");
+        await applyBundlePurification(attempt,paid.paidAt,!!stored.revoked);
       } else {
         const status = session.status === "expired" ? "expired" : session.status === "complete" ? "completed" : "open";
         await getDb().prepare("UPDATE course_purchase_attempts SET session_id=?,status=CASE WHEN status='paid' THEN status ELSE ? END,updated_at=? WHERE id=?")
@@ -459,6 +449,7 @@ async function reconcileSession(sessionId: string, event: Stripe.Event, stripe: 
     if (error instanceof CoursePurchaseVerificationError) await transaction(async () => {
       await assertLock(key, token);
       await getDb().prepare("UPDATE course_purchases SET revoked=1,revocation_reason=COALESCE(revocation_reason,'payment-verification-failed'),updated_at=? WHERE attempt_id=?").run(now(), str(attempt.id));
+      await applyBundlePurification(attempt,now(),true);
     });
     throw error;
   } finally {
@@ -494,11 +485,12 @@ async function reconcileCharge(event: Stripe.Event, stripe: Stripe) {
     if (known && error instanceof CoursePurchaseVerificationError) await transaction(async () => {
       await getDb().prepare("UPDATE course_purchases SET revoked=1,revocation_reason=COALESCE(revocation_reason,'payment-verification-failed'),updated_at=? WHERE attempt_id=?")
         .run(now(), str(known!.id));
+      await applyBundlePurification(known!,now(),true);
     });
     throw error;
   }
 }
-/** Returns true for this integration; false lets the booking handler continue. */
+/** Returns true for Slowlax course payments and false for unrelated events. */
 export async function reconcileCoursePurchaseEvent(event: Stripe.Event, stripe = getStripe()): Promise<boolean> {
   if (!event.id || !event.type || !event.data?.object) throw new Error("Course purchase event is malformed");
   if (await getDb().prepare("SELECT id FROM course_purchase_events WHERE id=?").get(event.id)) return true;

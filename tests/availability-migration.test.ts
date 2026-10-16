@@ -115,7 +115,7 @@ test("availability migration preserves legacy accounts, slots and bookings and a
     await Promise.all([migrated.initialize(), migrated.initialize()]);
     assert.deepEqual(
       await migrated.prepare("SELECT * FROM users ORDER BY id").all(),
-      usersBefore,
+      usersBefore.map((row) => ({ ...row, supabase_id: null })),
     );
     assert.deepEqual(
       await migrated.prepare("SELECT * FROM bookings ORDER BY id").all(),
@@ -200,7 +200,7 @@ test("availability migration preserves legacy accounts, slots and bookings and a
     );
     assert.deepEqual(
       await db.prepare("SELECT * FROM users ORDER BY id").all(),
-      usersBefore,
+      usersBefore.map((row) => ({ ...row, supabase_id: null })),
     );
 
     // HTTP-backed connections cannot rely on foreign_keys pragmas; the new

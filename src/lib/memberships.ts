@@ -18,7 +18,7 @@ const positiveId = z.number().int().positive();
 const revision = z.iso.datetime().optional();
 const groupSchema = z.object({ name: text(150, 2), slug: text(100), description: text(20000),
   published: z.boolean(), courseIds: z.array(positiveId).max(100), expectedUpdatedAt: revision });
-const planSchema = z.object({ groupId: positiveId, name: text(150, 2), slug: text(100), description: text(20000),
+const planSchema = z.object({ groupId: positiveId, groupIds: z.array(positiveId).min(1).max(100).optional(), name: text(150, 2), slug: text(100), description: text(20000),
   priceOre: z.number().int().min(1).max(10000000), vatPercent: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(25)]),
   interval: z.enum(["month", "year"]), published: z.boolean(), expectedUpdatedAt: revision });
 const postSchema = z.object({ groupId: positiveId, title: text(180, 2), body: z.unknown(),
@@ -42,9 +42,25 @@ function group(row: Row, courses: Course[]): MembershipGroup {
 }
 function plan(row: Row): MembershipPlan {
   return { id: Number(row.id), groupId: Number(row.group_id), groupName: String(row.group_name), name: String(row.name),
+    groupIds: [Number(row.group_id)], groups: [{ id: Number(row.group_id), name: String(row.group_name) }],
     slug: String(row.slug), description: String(row.description), priceOre: Number(row.price_ore),
     vatPercent: Number(row.vat_percent) as MembershipPlan["vatPercent"], interval: row.interval as MembershipPlan["interval"],
     published: !!row.published, createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
+}
+async function plansFromRows(rows: Row[]): Promise<MembershipPlan[]> {
+  return Promise.all(rows.map(async row => {
+    const result = plan(row), groups = await getMembershipPlanGroups(result.id, result.groupId);
+    return { ...result, groups, groupIds: groups.map(group => group.id), groupName: groups.map(group => group.name).join(" · ") };
+  }));
+}
+export async function getMembershipPlanGroups(planId: number, legacyGroupId?: number): Promise<{ id: number; name: string }[]> {
+  const rows = await getDb().prepare(`SELECT g.id,g.name FROM membership_plan_groups pg JOIN membership_groups g ON g.id=pg.group_id WHERE pg.plan_id=? ORDER BY g.id`).all(planId);
+  if (!rows.length) {
+    const legacy = await getDb().prepare(`SELECT g.id,g.name FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id WHERE p.id=?`).get(planId);
+    if (legacy) rows.push(legacy);
+    else if (legacyGroupId) { const group = await getDb().prepare("SELECT id,name FROM membership_groups WHERE id=?").get(legacyGroupId); if (group) rows.push(group); }
+  }
+  return rows.map(group => ({ id: Number(group.id), name: String(group.name) }));
 }
 async function groupsFromRows(rows: Row[], publishedCoursesOnly = false): Promise<MembershipGroup[]> {
   if (!rows.length) return [];
@@ -98,40 +114,51 @@ export async function saveGroup(actorId: number, groupId: number | undefined, in
 
 const viableGroup = `g.published=1 AND NOT EXISTS(SELECT 1 FROM membership_group_courses gc
   JOIN courses c ON c.id=gc.course_id WHERE gc.group_id=g.id AND c.published<>1)`;
+const viablePlanGroups = `NOT EXISTS(SELECT 1 FROM membership_plan_groups vpg JOIN membership_groups vg ON vg.id=vpg.group_id
+  WHERE vpg.plan_id=p.id AND (vg.published<>1 OR EXISTS(SELECT 1 FROM membership_group_courses vgc JOIN courses vc ON vc.id=vgc.course_id WHERE vgc.group_id=vg.id AND vc.published<>1)))`;
 export async function getPublicPlans(): Promise<MembershipPlan[]> {
-  return (await getDb().prepare(`SELECT p.*,g.name AS group_name FROM membership_plans p
-    JOIN membership_groups g ON g.id=p.group_id JOIN membership_settings s ON s.id=1
-    WHERE s.sales_enabled=1 AND p.published=1 AND ${viableGroup} ORDER BY p.price_ore,p.id`).all()).map(plan);
+  return plansFromRows(await getDb().prepare(`SELECT p.*,g.name AS group_name FROM membership_plans p
+    JOIN membership_groups g ON g.id=p.group_id
+    WHERE p.published=1 AND ${viableGroup} AND ${viablePlanGroups} ORDER BY p.price_ore,p.id`).all());
 }
 export async function getPublicPlan(slugValue: string): Promise<MembershipPlan | undefined> {
   return (await getPublicPlans()).find(p => p.slug === slugValue);
 }
 export async function getPublicPlanCourses(planId: number): Promise<Course[]> {
   positiveId.parse(planId);
-  return (await getDb().prepare(`SELECT c.* FROM membership_plans p
-    JOIN membership_groups g ON g.id=p.group_id JOIN membership_settings s ON s.id=1
-    JOIN membership_group_courses gc ON gc.group_id=g.id JOIN courses c ON c.id=gc.course_id
-    WHERE p.id=? AND s.sales_enabled=1 AND p.published=1 AND ${viableGroup} AND c.published=1
+  return (await getDb().prepare(`SELECT DISTINCT c.* FROM membership_plans p
+    JOIN membership_groups g ON g.id=p.group_id
+    JOIN membership_group_courses gc ON (gc.group_id=g.id OR EXISTS(SELECT 1 FROM membership_plan_groups pcg WHERE pcg.plan_id=p.id AND pcg.group_id=gc.group_id)) JOIN courses c ON c.id=gc.course_id
+    WHERE p.id=? AND p.published=1 AND ${viableGroup} AND ${viablePlanGroups} AND c.published=1
     ORDER BY c.title,c.id`).all(planId)).map(course);
 }
 export async function getAdminPlans(actorId: number): Promise<MembershipPlan[]> {
   await assertAdmin(actorId);
-  return (await getDb().prepare("SELECT p.*,g.name AS group_name FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id ORDER BY p.name,p.id").all()).map(plan);
+  return plansFromRows(await getDb().prepare("SELECT p.*,g.name AS group_name FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id ORDER BY p.name,p.id").all());
 }
 export async function getAdminPlan(actorId: number, planId: number): Promise<MembershipPlan | undefined> {
   await assertAdmin(actorId); positiveId.parse(planId);
   const row = await getDb().prepare("SELECT p.*,g.name AS group_name FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id WHERE p.id=?").get(planId);
-  return row ? plan(row) : undefined;
+  return row ? (await plansFromRows([row]))[0] : undefined;
 }
 export async function savePlan(actorId: number, planId: number | undefined, input: MembershipPlanInput): Promise<number> {
   return transaction(async () => {
     await assertAdmin(actorId); if (planId !== undefined) positiveId.parse(planId);
     const value = planSchema.parse(input);
+    const groupIds = value.groupIds ?? [value.groupId];
+    if (new Set(groupIds).size !== groupIds.length || !groupIds.includes(value.groupId)) throw new DomainError("Välj varje grupp en gång och behåll huvudgruppen bland valen.");
+    for (const groupId of groupIds) {
+      const group = await getDb().prepare("SELECT published FROM membership_groups WHERE id=?").get(groupId);
+      if (!group) throw new DomainError("Välj grupper som finns på webbplatsen.");
+      if (value.published && (!group.published || await getDb().prepare(`SELECT c.id FROM membership_group_courses gc JOIN courses c ON c.id=gc.course_id WHERE gc.group_id=? AND c.published<>1`).get(groupId)))
+        throw new DomainError("Publicera alla grupper och deras kurser först eller spara medlemskapet som utkast.");
+    }
     const target = await getDb().prepare("SELECT * FROM membership_groups WHERE id=?").get(value.groupId);
     if (!target) throw new DomainError("Välj en grupp som finns.");
     if (value.published && (!target.published || await getDb().prepare(`SELECT c.id FROM membership_group_courses gc JOIN courses c ON c.id=gc.course_id WHERE gc.group_id=? AND c.published<>1`).get(value.groupId)))
       throw new DomainError("Publicera gruppen och dess kurser först eller spara medlemskapet som utkast.");
     const path = slug(value.slug, value.name);
+    if (path === "bas") throw new DomainError("Välj en annan webbadress. Adressen bas är reserverad för det kostnadsfria Bas-medlemskapet.");
     if (["kassa", "bekraftelse", "villkor"].includes(path)) throw new DomainError("Välj en annan webbadress för medlemskapet.");
     if (await getDb().prepare("SELECT id FROM membership_plans WHERE slug=? AND id<>?").get(path, planId ?? -1))
       throw new DomainError("Ett annat medlemskap använder redan den webbadressen.");
@@ -146,11 +173,18 @@ export async function savePlan(actorId: number, planId: number | undefined, inpu
       const result = await getDb().prepare("UPDATE membership_plans SET group_id=?,name=?,slug=?,description=?,price_ore=?,vat_percent=?,interval=?,published=?,updated_at=? WHERE id=? AND updated_at=?")
         .run(value.groupId, value.name, path, value.description, value.priceOre, value.vatPercent, value.interval, value.published ? 1 : 0, now, planId, value.expectedUpdatedAt!);
       if (!result.changes) throw new DomainError("Medlemskapet har ändrats. Ladda om sidan.");
+      await savePlanGroups(planId, groupIds);
       return planId;
     }
-    return Number((await getDb().prepare("INSERT INTO membership_plans(group_id,name,slug,description,price_ore,vat_percent,interval,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
+    const newId = Number((await getDb().prepare("INSERT INTO membership_plans(group_id,name,slug,description,price_ore,vat_percent,interval,published,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)")
       .run(value.groupId, value.name, path, value.description, value.priceOre, value.vatPercent, value.interval, value.published ? 1 : 0, now, now)).lastInsertRowid);
+    await savePlanGroups(newId, groupIds);
+    return newId;
   });
+}
+async function savePlanGroups(planId: number, groupIds: number[]) {
+  await getDb().prepare("DELETE FROM membership_plan_groups WHERE plan_id=?").run(planId);
+  for (const groupId of groupIds) await getDb().prepare("INSERT INTO membership_plan_groups(plan_id,group_id) VALUES(?,?)").run(planId, groupId);
 }
 export async function getMembershipSettings(): Promise<MembershipSettings> {
   const row = (await getDb().prepare("SELECT * FROM membership_settings WHERE id=1").get())!;
@@ -168,7 +202,7 @@ export async function saveMembershipSettings(actorId: number, input: { salesEnab
       appUrl();
       if (!z.email().safeParse((await getSettings()).email).success) throw new DomainError("Fyll i en fungerande kontaktadress i webbplatsens inställningar.");
       if (value.terms.length < 20) throw new DomainError("Fyll i medlemsvillkor innan du aktiverar försäljningen.");
-      if (!await getDb().prepare(`SELECT p.id FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id WHERE p.published=1 AND ${viableGroup} LIMIT 1`).get())
+      if (!await getDb().prepare(`SELECT p.id FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id WHERE p.published=1 AND ${viableGroup} AND ${viablePlanGroups} LIMIT 1`).get())
         throw new DomainError("Publicera minst ett medlemskap med en publicerad grupp och publicerade kurser innan du aktiverar försäljningen.");
     }
     const now = nextRevision(current.updated_at);

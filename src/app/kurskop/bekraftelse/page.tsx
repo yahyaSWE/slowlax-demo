@@ -31,18 +31,18 @@ export default async function CoursePurchaseConfirmationPage({ searchParams }: {
               : "Se dina betalningar och köp i elevportalen."}</p>
     </header>
     {checkout && (checkout.confirmed || checkout.courseAvailable || checkout.groupAvailable) && <div className="panel stack">
-      {checkout.confirmed && checkout.groupName && <p>Gruppen <strong>{checkout.groupName}</strong> ingår{checkout.groupExpiresAt ? <> till {formatDateTime(checkout.groupExpiresAt)}</> : " utan tidsgräns"}.</p>}
+      {checkout.confirmed && checkout.groups.map(group => <p key={group.id}>Gruppen <strong>{group.name}</strong> ingår{group.expiresAt ? <> till {formatDateTime(group.expiresAt)}</> : " utan tidsgräns"}.</p>)}
       {!checkout.confirmed && <p>Du har åtkomst från en separat tilldelning eller betalning. Den påverkas inte av detta köp.</p>}
       {checkout.confirmed && !checkout.courseAvailable && <p className="notice">Kursen är för närvarande inte tillgänglig. Ditt köp finns sparat. Kontakta oss för hjälp.</p>}
       <div className="membership-actions">
-        {checkout.courseAvailable && <Link href={`/elevportal/kurser/${checkout.courseId}`} className="button button-primary">Öppna kursen</Link>}
-        {checkout.groupAvailable && <Link href={`/elevportal/grupper/${checkout.groupId}`} className="button button-secondary">Öppna gruppen</Link>}
+        {checkout.courses.filter(course => course.available).map(course => <Link key={course.id} href={`/elevportal/kurser/${course.id}`} className="button button-primary">{checkout.isBundle ? course.title : "Öppna kursen"}</Link>)}
+        {checkout.groups.filter(group => group.available).map(group => <Link key={group.id} href={`/elevportal/grupper/${group.id}`} className="button button-secondary">Öppna {group.name}</Link>)}
       </div>
     </div>}
     <div className="membership-actions course-purchase-actions">
       <Link href="/elevportal/kop" className="button button-secondary">Mina köp</Link>
       {checkout?.status === "pending" && <CoursePurchaseRefreshButton />}
-      {checkout?.status === "cancelled" && <Link href={`/kurser/${encodeURIComponent(checkout.slug)}`} className="button button-primary">Till kursen</Link>}
+      {checkout?.status === "cancelled" && <Link href={`/${checkout.isBundle ? "paket" : "kurser"}/${encodeURIComponent(checkout.slug)}`} className="button button-primary">{checkout.isBundle ? "Till paketet" : "Till kursen"}</Link>}
       <Link href="/kontakt" className="text-link">Kontakta oss</Link>
     </div>
   </section>;

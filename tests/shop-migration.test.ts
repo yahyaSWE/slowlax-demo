@@ -58,13 +58,14 @@ test("version 4 upgrade atomically adds a disabled empty shop and preserves exis
       INSERT INTO booking_email_outbox(id,booking_id,audience,recipient,subject,body,created_at,next_attempt_at) VALUES('original-mail',42,'customer','customer@example.test','Original subject','Original body','2025-01-01T00:00:00.000Z','2025-01-01T00:00:00.000Z');
     `);
     const tables = ["users", "sessions", "auth_tokens", "courses", "lessons", "enrollments", "progress", "bookings", "booking_email_outbox", "settings"];
-    const before = new Map<string, unknown>();
+    const before = new Map<string, Record<string, unknown>[]>();
     for (const table of tables) before.set(table, (await client.execute(`SELECT * FROM ${table}`)).rows);
     await assert.rejects(adapter.initialize(), /interrupted shop migration/);
     assert.equal((await client.execute("PRAGMA user_version")).rows[0].user_version, 4);
     assert.equal((await client.execute("SELECT COUNT(*) total FROM sqlite_master WHERE name='shop_settings'")).rows[0].total, 0);
     await Promise.all([adapter.initialize(), adapter.initialize()]);
-    for (const table of tables) assert.deepEqual((await client.execute(`SELECT * FROM ${table}`)).rows, before.get(table));
+    for (const table of tables) assert.deepEqual((await client.execute(`SELECT * FROM ${table}`)).rows,
+      table === "users" ? before.get(table)!.map(row => ({ ...row, supabase_id: null })) : before.get(table));
     assert.equal((await client.execute("PRAGMA user_version")).rows[0].user_version, SCHEMA_VERSION);
     assert.equal((await client.execute("SELECT value FROM app_meta WHERE key='preserve-import'")).rows[0].value, "original-course");
     assert.equal((await client.execute("SELECT enabled FROM shop_settings WHERE id=1")).rows[0].enabled, 0);

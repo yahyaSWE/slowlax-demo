@@ -1,6 +1,6 @@
 import { getDb, hasCourseAccess } from "./db";
 
-export type StudentAccessSource = "manual" | "subscription" | "course_purchase";
+export type StudentAccessSource = "manual" | "subscription" | "course_purchase" | "free_membership";
 export type StudentAccessState = {
   id: number;
   title: string;
@@ -19,21 +19,31 @@ async function isVerifiedStudent(userId: number) {
 // Read only identities already associated with this student. Material, descriptions,
 // posts, and files continue to use the existing publication/access checks.
 async function groupGrants(userId: number): Promise<Grant[]> {
-  return getDb().prepare(`
+  const rows = await getDb().prepare(`
     SELECT group_id,'manual' AS source,expires_at,
-      (expires_at IS NULL OR julianday(expires_at)>julianday('now')) AS active,0 AS blocked
+      CASE WHEN expires_at IS NULL OR julianday(expires_at)>julianday('now') THEN 1 ELSE 0 END AS active,0 AS blocked,
+      CAST(NULL AS TEXT) AS paid_at,CAST(NULL AS INTEGER) AS access_days
       FROM membership_assignments WHERE user_id=?
     UNION ALL
-    SELECT group_id,'subscription',paid_until,
-      (status IN ('active','past_due') AND blocked=0 AND julianday(paid_until)>julianday('now')),
-      (blocked=1 OR status NOT IN ('active','past_due'))
-      FROM membership_subscriptions WHERE user_id=? AND julianday(paid_until) IS NOT NULL
+    SELECT fg.group_id,'free_membership',CAST(NULL AS TEXT),1,0,CAST(NULL AS TEXT),CAST(NULL AS INTEGER)
+      FROM free_membership_members fm JOIN free_membership_groups fg ON 1=1 WHERE fm.user_id=?
     UNION ALL
-    SELECT p.group_id,'course_purchase',p.group_expires_at,
-      (p.revoked=0 AND (p.group_expires_at IS NULL OR julianday(p.group_expires_at)>julianday('now'))),p.revoked
+    SELECT COALESCE(ag.group_id,s.group_id),'subscription',s.paid_until,
+      CASE WHEN s.status IN ('active','past_due') AND s.blocked=0 AND julianday(s.paid_until)>julianday('now') THEN 1 ELSE 0 END,
+      CASE WHEN s.blocked=1 OR s.status NOT IN ('active','past_due') THEN 1 ELSE 0 END,CAST(NULL AS TEXT),CAST(NULL AS INTEGER)
+      FROM membership_subscriptions s LEFT JOIN membership_attempt_groups ag ON ag.attempt_id=s.attempt_id
+      WHERE s.user_id=? AND julianday(s.paid_until) IS NOT NULL
+    UNION ALL
+    SELECT COALESCE(ag.group_id,p.group_id),'course_purchase',CASE WHEN ag.group_id IS NULL THEN p.group_expires_at ELSE NULL END,
+      CASE WHEN p.revoked=0 AND ((ag.group_id IS NULL AND (p.group_expires_at IS NULL OR julianday(p.group_expires_at)>julianday('now')))
+        OR (ag.group_id IS NOT NULL AND (ag.access_days IS NULL OR julianday(p.paid_at)+ag.access_days>julianday('now')))) THEN 1 ELSE 0 END,p.revoked,
+      p.paid_at,ag.access_days
       FROM course_purchases p JOIN course_purchase_attempts a ON a.id=p.attempt_id AND a.status='paid'
-      WHERE p.user_id=? AND p.group_id IS NOT NULL AND julianday(p.paid_at)<=julianday('now')
-  `).all(userId, userId, userId) as Promise<Grant[]>;
+      LEFT JOIN course_purchase_attempt_groups ag ON ag.attempt_id=p.attempt_id
+      WHERE p.user_id=? AND COALESCE(ag.group_id,p.group_id) IS NOT NULL AND julianday(p.paid_at)<=julianday('now')
+  `).all(userId, userId, userId, userId);
+  return rows.map(row => ({ ...row, expires_at: row.access_days != null
+    ? new Date(Date.parse(String(row.paid_at)) + Number(row.access_days) * 86400000).toISOString() : row.expires_at })) as Grant[];
 }
 
 function grantState(id: number, title: string, published: boolean, grants: Grant[]): StudentAccessState {
@@ -77,9 +87,9 @@ export async function getStudentCourseAccessState(userId: number, courseId: numb
   const row = await getDb().prepare(`SELECT c.id,c.title,c.published,
     EXISTS(SELECT 1 FROM enrollments e WHERE e.user_id=? AND e.course_id=c.id) AS manual,
     EXISTS(SELECT 1 FROM course_purchases p JOIN course_purchase_attempts a ON a.id=p.attempt_id AND a.status='paid'
-      WHERE p.user_id=? AND p.course_id=c.id AND julianday(p.paid_at)<=julianday('now')) AS purchased,
+      WHERE p.user_id=? AND (p.course_id=c.id OR EXISTS(SELECT 1 FROM course_purchase_attempt_courses pc WHERE pc.attempt_id=p.attempt_id AND pc.course_id=c.id)) AND julianday(p.paid_at)<=julianday('now')) AS purchased,
     EXISTS(SELECT 1 FROM course_purchases p JOIN course_purchase_attempts a ON a.id=p.attempt_id AND a.status='paid'
-      WHERE p.user_id=? AND p.course_id=c.id AND p.revoked=0 AND julianday(p.paid_at)<=julianday('now')) AS paid_active,
+      WHERE p.user_id=? AND (p.course_id=c.id OR EXISTS(SELECT 1 FROM course_purchase_attempt_courses pc WHERE pc.attempt_id=p.attempt_id AND pc.course_id=c.id)) AND p.revoked=0 AND julianday(p.paid_at)<=julianday('now')) AS paid_active,
     EXISTS(SELECT 1 FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=? AND l.course_id=c.id) AS studied
     FROM courses c WHERE c.id=?`).get(userId, userId, userId, userId, courseId);
   if (!row) return undefined;

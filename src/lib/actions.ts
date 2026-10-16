@@ -12,35 +12,29 @@ import {
 } from "./auth";
 import {
   DomainError,
-  cancelPendingBooking,
   createFirstAdmin,
-  getBookingById,
   getUserByEmail,
   hasAdmin,
-  reserveBooking,
   transaction,
 } from "./db";
 import { registerStudent } from "./accounts";
 import * as admin from "./admin";
-import * as availability from "./availability";
 import {
   equalSecret,
   hashPassword,
   verifyPassword,
 } from "./security";
 import {
-  bookingSchema,
   emailSchema,
   field,
   idField,
   signupSchema,
 } from "./validation";
-import { createCheckout, getStripe } from "./stripe";
 import { enforceRequestLimit } from "./request-rate-limit";
 import { sendVerificationEmail } from "./account-email";
-import { dispatchBookingEmailOutbox } from "./email-outbox";
 import { accountAuthHref, safeAccountReturnTo } from "./account-return";
 import { resolveAccountReturnTo } from "./account-return-destination";
+import { SupabaseAuthConfigurationError, supabaseAuthRequested } from "./supabase-auth-config";
 function path(value: string, fallback: string) {
   return /^\/(?!\/)/.test(value) &&
     !value.includes("\\") &&
@@ -49,13 +43,13 @@ function path(value: string, fallback: string) {
     : fallback;
 }
 function message(error: unknown) {
-  if (error instanceof DomainError) return error.message;
+  if (error instanceof DomainError || error instanceof SupabaseAuthConfigurationError) return error.message;
   if (error instanceof z.ZodError)
     return error.issues[0]?.message || "Kontrollera fälten och försök igen.";
   if (error instanceof Error && error.message.includes("UNIQUE constraint"))
     return "E-postadressen eller webbadressen används redan.";
   console.error(
-    "Tibb action failed",
+    "Slowlax action failed",
     error instanceof Error ? error.name : "UnknownError",
   );
   return "Åtgärden kunde inte slutföras. Försök igen.";
@@ -103,6 +97,12 @@ export async function loginAction(form: FormData): Promise<void> {
         .max(128)
         .parse(field(form, "password"));
       await requestLimit("login", email, 10);
+      if (supabaseAuthRequested()) {
+        const { loginSupabaseUser } = await import("./supabase-auth");
+        const user = await loginSupabaseUser(email, password);
+        after(async () => { try { const { dispatchKitNewsletterOutbox } = await import("./kit-newsletter"); await dispatchKitNewsletterOutbox({ userId: user.id }); } catch { /* Durable outbox remains available for retry. */ } });
+        return resolveAccountReturnTo(field(form, "returnTo"), user.role === "admin" ? "/admin" : "/elevportal");
+      }
       const user = await transaction(async () => {
         const current = await getUserByEmail(email);
         const valid = verifyPassword(password, current?.passwordHash || "missing:" + "0".repeat(128));
@@ -131,6 +131,12 @@ export async function signupAction(form: FormData): Promise<void> {
         password: field(form, "password"),
       });
       await requestLimit("signup", input.email, 5);
+      if (supabaseAuthRequested()) {
+        const { registerSupabaseUser } = await import("./supabase-auth");
+        await registerSupabaseUser(input, field(form, "returnTo"));
+        const target = accountAuthHref("/verifiera-epost", field(form, "returnTo"));
+        return target + (target.includes("?") ? "&" : "?") + "message=" + encodeURIComponent("Kontrollera inkorgen för att bekräfta adressen. Om du redan har ett konto kan du logga in eller begära återställning. Detta bekräftar inte att ett konto finns eller att ett mejl har levererats.");
+      }
       const user = await registerStudent(input);
       await createSession(user.id);
       const returnTo = safeAccountReturnTo(field(form, "returnTo"), "");
@@ -154,208 +160,6 @@ export async function logoutAction(): Promise<void> {
   await destroySession();
   redirect("/");
 }
-export async function createBookingAction(form: FormData): Promise<void> {
-  await formAction(form, "/bokning", async () => {
-    const input = bookingSchema.parse({
-      slotId: field(form, "slotId"),
-      name: field(form, "name"),
-      email: field(form, "email"),
-      phone: field(form, "phone"),
-      paymentMethod: field(form, "paymentMethod"),
-      consent: field(form, "consent"),
-    });
-    await requestLimit("booking", input.email, 10);
-    const booking = await reserveBooking(input);
-    if (booking.status === "confirmed") after(() => dispatchBookingEmailOutbox({ bookingId: booking.id, limit: 2 }));
-    if (input.paymentMethod === "stripe") {
-      try {
-        return await createCheckout(booking);
-      } catch (error) {
-        await cancelPendingBooking(booking.reference);
-        throw error;
-      }
-    }
-    return `/bokning/bekraftelse?ref=${booking.reference}`;
-  });
-}
-export async function saveTreatmentAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(
-    form,
-    "/admin/behandlingar",
-    async () =>
-      await admin.saveTreatment(user.id, {
-        id: field(form, "id") ? idField(form) : undefined,
-        name: field(form, "name"),
-        description: field(form, "description"),
-        durationMinutes: Number(field(form, "durationMinutes")),
-        price: field(form, "price"),
-        active: field(form, "active") === "on",
-      }),
-  );
-}
-export async function deleteTreatmentAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(
-    form,
-    "/admin/behandlingar",
-    async () => await admin.archiveTreatment(user.id, idField(form)),
-  );
-}
-export async function savePractitionerAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/behandlare", async () => {
-    await admin.savePractitioner(user.id, {
-      id: field(form, "id") ? idField(form) : undefined,
-      name: field(form, "name"),
-      description: field(form, "description"),
-      active: field(form, "active") === "on",
-      photoUploadId: form.has("photoUploadId")
-        ? field(form, "photoUploadId") || null
-        : undefined,
-    });
-  });
-}
-export async function archivePractitionerAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/behandlare", async () => {
-    await admin.archivePractitioner(user.id, idField(form));
-  });
-}
-export async function saveSlotAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/tider", async () => {
-    await admin.saveSlot(
-      user.id,
-      idField(form, "treatmentId"),
-      field(form, "start"),
-      idField(form, "practitionerId"),
-    );
-  });
-}
-export async function deleteSlotAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(
-    form,
-    "/admin/tider",
-    async () => await admin.deleteSlot(user.id, idField(form)),
-  );
-}
-export async function saveAvailabilityScheduleAction(
-  form: FormData,
-): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/tider", async () => {
-    const starts = form.getAll("breakStart").map(String);
-    const ends = form.getAll("breakEnd").map(String);
-    if (starts.length !== ends.length)
-      throw new DomainError("Ange både start och slut för varje rast.");
-    const result = await availability.saveAvailabilitySchedule(user.id, {
-      treatmentId: idField(form, "treatmentId"),
-      practitionerId: idField(form, "practitionerId"),
-      startDate: field(form, "startDate"),
-      endDate: field(form, "endDate"),
-      weekdays: form.getAll("weekdays").map(Number),
-      startTime: field(form, "startTime"),
-      endTime: field(form, "endTime"),
-      breaks: starts.map((startTime, index) => ({
-        startTime,
-        endTime: ends[index],
-      })),
-    });
-    return (
-      "/admin/tider?success=" +
-      encodeURIComponent(
-        `${result.created} tider skapades.` +
-          (result.blocked
-            ? ` ${result.blocked} av dem är spärrade och visas inte för kunder.`
-            : "") +
-          (result.skipped
-            ? ` ${result.skipped} tider hoppades över eftersom de redan finns, är bokade eller har passerat.`
-            : ""),
-      )
-    );
-  });
-}
-export async function deleteAvailabilityScheduleAction(
-  form: FormData,
-): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/tider", async () => {
-    await availability.deleteAvailabilitySchedule(user.id, idField(form));
-    return (
-      "/admin/tider?success=" +
-      encodeURIComponent(
-        "Perioden och dess framtida lediga tider har tagits bort. Befintliga bokningar har behållits.",
-      )
-    );
-  });
-}
-export async function saveAvailabilityBlockAction(
-  form: FormData,
-): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/tider", async () => {
-    await availability.saveAvailabilityBlock(user.id, {
-      practitionerId: field(form, "practitionerId")
-        ? idField(form, "practitionerId")
-        : undefined,
-      startDate: field(form, "startDate"),
-      endDate: field(form, "endDate"),
-      allDay: field(form, "allDay") === "on",
-      startTime: field(form, "startTime"),
-      endTime: field(form, "endTime"),
-      reason: field(form, "reason"),
-    });
-    return (
-      "/admin/tider?success=" +
-      encodeURIComponent(
-        "Spärren har sparats. Tider som överlappar kan inte bokas.",
-      )
-    );
-  });
-}
-export async function deleteAvailabilityBlockAction(
-  form: FormData,
-): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/tider", async () => {
-    await availability.deleteAvailabilityBlock(user.id, idField(form));
-    return (
-      "/admin/tider?success=" +
-      encodeURIComponent(
-        "Spärren har tagits bort. Publicerade lediga tider kan bokas igen.",
-      )
-    );
-  });
-}
-export async function updateBookingAction(form: FormData): Promise<void> {
-  const user = await requireAdmin();
-  await formAction(form, "/admin/bokningar", async () => {
-    const id = idField(form);
-    const booking = await getBookingById(id);
-    if (
-      booking?.paymentMethod === "stripe" &&
-      booking.status === "pending" &&
-      field(form, "status") === "cancelled" &&
-      booking.checkoutSessionId
-    ) {
-      try {
-        await getStripe().checkout.sessions.expire(booking.checkoutSessionId);
-      } catch {
-        throw new DomainError(
-          "Kortbetalningen kunde inte avslutas. Kontrollera betalningen i Stripe innan du avbokar.",
-        );
-      }
-    }
-    await admin.updateBooking(
-      user.id,
-      id,
-      field(form, "status"),
-      field(form, "paymentStatus"),
-    );
-  });
-}
 export async function saveSettingsAction(form: FormData): Promise<void> {
   const user = await requireAdmin();
   await formAction(
@@ -368,8 +172,6 @@ export async function saveSettingsAction(form: FormData): Promise<void> {
         phone: field(form, "phone"),
         address: field(form, "address"),
         location: field(form, "location"),
-        payOnSite: field(form, "payOnSite") === "on",
-        stripeEnabled: field(form, "stripeEnabled") === "on",
       }),
   );
 }
@@ -505,6 +307,12 @@ export async function setupAction(form: FormData): Promise<void> {
       email: field(form, "email"),
       password: field(form, "password"),
     });
+    if (supabaseAuthRequested()) {
+      const { registerSupabaseUser } = await import("./supabase-auth");
+      const user = await registerSupabaseUser(input, "/admin", true);
+      if (!user || user.role !== "admin") throw new DomainError("Administratören kunde inte skapas. Kontrollera om adressen redan används i Supabase.");
+      return "/verifiera-epost?returnTo=%2Fadmin&message=" + encodeURIComponent("Administratören är förberedd. Bekräfta e-postadressen med Supabase-länken innan du loggar in.");
+    }
     const user = await createFirstAdmin({
       name: input.name,
       email: input.email,

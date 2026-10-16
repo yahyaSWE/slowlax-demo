@@ -2,9 +2,10 @@
 export function coursePurchaseAccessSql(userExpr = "u.id", courseExpr = "c.id"): string {
   return `EXISTS(SELECT 1 FROM course_purchases cp_access
     JOIN course_purchase_attempts cpa_access ON cpa_access.id=cp_access.attempt_id AND cpa_access.status='paid'
-    JOIN courses cpc_access ON cpc_access.id=cp_access.course_id AND cpc_access.published=1
+    JOIN courses cpc_access ON cpc_access.id=${courseExpr} AND cpc_access.published=1
     JOIN users cpu_access ON cpu_access.id=cp_access.user_id AND cpu_access.role='student' AND cpu_access.email_verified_at IS NOT NULL
-    WHERE cp_access.user_id=${userExpr} AND cp_access.course_id=${courseExpr}
+    WHERE cp_access.user_id=${userExpr} AND (cp_access.course_id=${courseExpr} OR EXISTS(
+      SELECT 1 FROM course_purchase_attempt_courses cps_access WHERE cps_access.attempt_id=cp_access.attempt_id AND cps_access.course_id=${courseExpr}))
       AND cp_access.revoked=0 AND julianday(cp_access.paid_at)<=julianday('now'))`;
 }
 
@@ -12,9 +13,12 @@ export function coursePurchaseAccessSql(userExpr = "u.id", courseExpr = "c.id"):
 export function coursePurchaseGroupAccessSql(userExpr = "u.id", groupExpr = "g.id"): string {
   return `EXISTS(SELECT 1 FROM course_purchases cpg_access
     JOIN course_purchase_attempts cpga_access ON cpga_access.id=cpg_access.attempt_id AND cpga_access.status='paid'
-    JOIN membership_groups cpgg_access ON cpgg_access.id=cpg_access.group_id AND cpgg_access.published=1
+    JOIN membership_groups cpgg_access ON cpgg_access.id=${groupExpr} AND cpgg_access.published=1
     JOIN users cpgu_access ON cpgu_access.id=cpg_access.user_id AND cpgu_access.role='student' AND cpgu_access.email_verified_at IS NOT NULL
-    WHERE cpg_access.user_id=${userExpr} AND cpg_access.group_id=${groupExpr}
+    WHERE cpg_access.user_id=${userExpr}
       AND cpg_access.revoked=0 AND julianday(cpg_access.paid_at)<=julianday('now')
-      AND (cpg_access.group_expires_at IS NULL OR julianday(cpg_access.group_expires_at)>julianday('now')))`;
+      AND (EXISTS(SELECT 1 FROM course_purchase_attempt_groups cpsg_access WHERE cpsg_access.attempt_id=cpg_access.attempt_id
+        AND cpsg_access.group_id=${groupExpr} AND (cpsg_access.access_days IS NULL OR julianday(cpg_access.paid_at)+cpsg_access.access_days>julianday('now')))
+        OR (NOT EXISTS(SELECT 1 FROM course_purchase_attempt_groups cpsg_legacy WHERE cpsg_legacy.attempt_id=cpg_access.attempt_id)
+          AND cpg_access.group_id=${groupExpr} AND (cpg_access.group_expires_at IS NULL OR julianday(cpg_access.group_expires_at)>julianday('now')))))`;
 }

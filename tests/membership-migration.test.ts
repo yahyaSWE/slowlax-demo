@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@libsql/client/node";
+import type { InStatement } from "@libsql/client";
 import { DatabaseAdapter } from "../src/lib/database";
 import { SCHEMA_VERSION } from "../src/lib/schema";
 
@@ -8,8 +9,8 @@ delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN; dele
 
 test("v7 migration creates disabled empty memberships atomically and preserves historical users, courses, activities, payments and progress", async () => {
   const client = createClient({ url: "file::memory:", intMode: "number", concurrency: 1 });
-  // Reuse every pre-v8 migration and seed exactly as deployed, omitting only
-  // the additive membership and later course-purchase fragments to create an isolated v7 fixture.
+  // Reuse the pre-v8 schema fragments without running the current Slowlax
+  // seed, which depends on tables that did not exist in the v7 fixture.
   const legacy = new DatabaseAdapter();
   const legacyClient = new Proxy(client, {
     get(target, property) {
@@ -18,7 +19,16 @@ test("v7 migration creates disabled empty memberships atomically and preserves h
         return new Proxy(tx, {
           get(transaction, key) {
             if (key === "executeMultiple") return async (sql: string) => {
-              if (!/CREATE TABLE IF NOT EXISTS (membership_|course_sales_settings)/.test(sql)) await transaction.executeMultiple(sql);
+              if (!/CREATE TABLE IF NOT EXISTS (membership_|free_membership_|purification_|rening_|course_sales_settings)/.test(sql)) await transaction.executeMultiple(sql);
+            };
+            if (key === "execute") return async (statement: InStatement) => {
+              const sql=typeof statement === "string" ? statement : statement.sql;
+              // v15 reserves the Bas URL in current paid plans. This historical
+              // fixture intentionally predates the plans table, so there can
+              // be no legacy paid Bas candidate to rename during its setup.
+              if (/^SELECT\s+id\s*,\s*updated_at\s+FROM\s+membership_plans\s+WHERE\s+slug='bas'$/i.test(sql))
+                return transaction.execute("SELECT 0 AS id,'' AS updated_at WHERE 0");
+              return transaction.execute(statement);
             };
             const value = Reflect.get(transaction, key);
             return typeof value === "function" ? value.bind(transaction) : value;
@@ -55,6 +65,7 @@ test("v7 migration creates disabled empty memberships atomically and preserves h
   });
   Object.assign(migrated, { clientPromise: Promise.resolve(migrationClient) });
   try {
+    await client.executeMultiple("CREATE TABLE app_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO app_meta(key,value) VALUES('seeded','1');");
     await legacy.initialize();
     await client.executeMultiple(`
       PRAGMA user_version=7;

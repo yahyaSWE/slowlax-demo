@@ -1,4 +1,7 @@
 import { randomBytes, createHash } from "node:crypto";
+import { getMembershipPlanGroups } from "./memberships";
+import { checkPurificationRevision,applyMembershipPurification,type PurificationInvoice } from "./purification-payment-hooks";
+import { snapshotPurificationQuotaForAttempt } from "./purification-domain";
 import type Stripe from "stripe";
 import { DomainError, getUser } from "./db";
 import { getDb, transaction } from "./database";
@@ -10,7 +13,7 @@ const num = (value: unknown) => Number(value);
 const now = () => new Date().toISOString();
 const id = (value: string | { id: string } | null | undefined) => typeof value === "string" ? value : value?.id;
 const API_OPTIONS = { timeout: 10000, maxNetworkRetries: 1 };
-const APPLICATION = "tibb.nu";
+const APPLICATION = "slowlax.se";
 const INTEGRATION = "membership";
 const CHECKOUT_MINUTES = 60;
 const LEASE_SECONDS = 90;
@@ -91,9 +94,15 @@ async function purchasablePlan(planId: number) {
   if (await getDb().prepare(`SELECT 1 FROM membership_group_courses gc JOIN courses c ON c.id=gc.course_id
     WHERE gc.group_id=? AND c.published=0 LIMIT 1`).get(num(plan.group_id)))
     throw new DomainError("Medlemskapet är inte tillgängligt.");
-  return { plan, settings: settings! };
+  const groups = await getMembershipPlanGroups(planId, num(plan.group_id));
+  for (const group of groups) {
+    if (!await getDb().prepare("SELECT id FROM membership_groups WHERE id=? AND published=1").get(group.id) ||
+      await getDb().prepare(`SELECT 1 FROM membership_group_courses gc JOIN courses c ON c.id=gc.course_id WHERE gc.group_id=? AND c.published<>1 LIMIT 1`).get(group.id))
+      throw new DomainError("Medlemskapet är inte tillgängligt.");
+  }
+  return { plan, settings: settings!, groups };
 }
-export type MembershipCheckoutConsent = { consent: true; planRevision: string; termsRevision: string };
+export type MembershipCheckoutConsent = { consent: true; planRevision: string; termsRevision: string; purificationRevision?:string|null };
 function matchesRevision(plan: Row, settings: Row, consent: MembershipCheckoutConsent) {
   if (consent.consent !== true || consent.planRevision !== str(plan.updated_at) || consent.termsRevision !== str(settings.updated_at))
     throw new DomainError("Priset eller villkoren har ändrats. Ladda om sidan och godkänn de aktuella villkoren.");
@@ -108,15 +117,19 @@ function ownMetadata(value: Stripe.Metadata | null | undefined) {
 async function reserveAttempt(userId: number, planId: number, consent: MembershipCheckoutConsent) {
   return transaction(async () => {
     await verifiedStudent(userId);
-    const { plan, settings } = await purchasablePlan(planId);
+    const { plan, settings, groups } = await purchasablePlan(planId);
     matchesRevision(plan, settings, consent);
+    await checkPurificationRevision('membership',planId,consent.purificationRevision);
     const timestamp = now();
     await getDb().prepare("UPDATE membership_checkout_attempts SET status='expired',lease_token=NULL,lease_until=NULL,updated_at=? WHERE status IN ('creating','open') AND expires_at<=?").run(timestamp, timestamp);
     // An overdue subscription can still bill again. Require its cancellation
     // before creating another subscription for the same access group.
-    if (await getDb().prepare("SELECT stripe_id FROM membership_subscriptions WHERE user_id=? AND group_id=? AND status NOT IN ('canceled','incomplete_expired') LIMIT 1").get(userId, num(plan.group_id)))
+    const groupSlots = groups.map(() => "?").join(","), groupIds = groups.map(group => group.id);
+    const overlap = `(s.group_id IN (${groupSlots}) OR EXISTS(SELECT 1 FROM membership_attempt_groups overlapping_groups WHERE overlapping_groups.attempt_id=s.attempt_id AND overlapping_groups.group_id IN (${groupSlots})))`;
+    if (await getDb().prepare(`SELECT s.stripe_id FROM membership_subscriptions s WHERE s.user_id=? AND ${overlap} AND s.status NOT IN ('canceled','incomplete_expired') LIMIT 1`).get(userId, ...groupIds, ...groupIds))
       throw new DomainError("Du har redan ett medlemskap i den här gruppen. Hantera det i betalningsportalen.");
-    let attempt = await getDb().prepare("SELECT * FROM membership_checkout_attempts WHERE user_id=? AND group_id=? AND (status='completed' OR (status IN ('creating','open') AND expires_at>?)) ORDER BY created_at DESC LIMIT 1").get(userId, num(plan.group_id), timestamp);
+    const attemptOverlap = `(group_id IN (${groupSlots}) OR EXISTS(SELECT 1 FROM membership_attempt_groups overlapping_groups WHERE overlapping_groups.attempt_id=membership_checkout_attempts.id AND overlapping_groups.group_id IN (${groupSlots})))`;
+    let attempt = await getDb().prepare(`SELECT * FROM membership_checkout_attempts WHERE user_id=? AND ${attemptOverlap} AND (status='completed' OR (status IN ('creating','open') AND expires_at>?)) ORDER BY created_at DESC LIMIT 1`).get(userId, ...groupIds, ...groupIds, timestamp);
     const fresh = !attempt;
     if (attempt) {
       if (num(attempt.plan_id) !== planId || str(attempt.plan_revision) !== consent.planRevision || str(attempt.settings_revision) !== consent.termsRevision)
@@ -128,7 +141,9 @@ async function reserveAttempt(userId: number, planId: number, consent: Membershi
       await getDb().prepare(`INSERT INTO membership_checkout_attempts
         (id,user_id,plan_id,group_id,terms,price_ore,vat_percent,interval,plan_name,plan_slug,plan_revision,settings_revision,status,expires_at,created_at,updated_at)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'creating',?,?,?)`).run(attemptId, userId, planId, num(plan.group_id), str(settings.terms), num(plan.price_ore), num(plan.vat_percent), str(plan.interval), str(plan.name), str(plan.slug), str(plan.updated_at), str(settings.updated_at), new Date(Date.now() + CHECKOUT_MINUTES * 60000).toISOString(), timestamp, timestamp);
+      for (const group of groups) await getDb().prepare("INSERT INTO membership_attempt_groups(attempt_id,group_id,group_name) VALUES(?,?,?)").run(attemptId, group.id, group.name);
       attempt = (await getDb().prepare("SELECT * FROM membership_checkout_attempts WHERE id=?").get(attemptId))!;
+      await snapshotPurificationQuotaForAttempt('membership',attemptId,planId);
     }
     const token = randomBytes(16).toString("hex");
     await getDb().prepare("UPDATE membership_checkout_attempts SET lease_token=?,lease_until=?,updated_at=? WHERE id=?").run(token, new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(), timestamp, str(attempt.id));
@@ -227,6 +242,7 @@ export async function createMembershipCheckout(userId: number, planId: number, c
     await transaction(async () => {
       const { plan, settings } = await purchasablePlan(planId);
       matchesRevision(plan, settings, consent);
+      await checkPurificationRevision('membership',planId,consent.purificationRevision);
       const result = await getDb().prepare("UPDATE membership_checkout_attempts SET customer_id=? WHERE id=? AND lease_token=? AND lease_until>?").run(customer, str(attempt.id), token, now());
       if (!result.changes) throw new Error("Membership checkout lease expired");
     });
@@ -235,6 +251,7 @@ export async function createMembershipCheckout(userId: number, planId: number, c
     await transaction(async () => {
       const { plan, settings } = await purchasablePlan(planId);
       matchesRevision(plan, settings, consent);
+      await checkPurificationRevision('membership',planId,consent.purificationRevision);
       if (!(await getDb().prepare("SELECT id FROM membership_checkout_attempts WHERE id=? AND lease_token=? AND lease_until>?").get(str(attempt.id), token, now())))
         throw new Error("Membership checkout lease expired");
     });
@@ -260,6 +277,7 @@ export async function createMembershipCheckout(userId: number, planId: number, c
     await transaction(async () => {
       const { plan, settings } = await purchasablePlan(planId);
       matchesRevision(plan, settings, consent);
+      await checkPurificationRevision('membership',planId,consent.purificationRevision);
       const attached = await getDb().prepare("UPDATE membership_checkout_attempts SET session_id=?,status='open',lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND lease_token=? AND lease_until>? AND status IN ('creating','open')").run(session.id, now(), str(attempt.id), token, now());
       if (!attached.changes) throw new Error("Membership checkout lease expired");
     });
@@ -285,9 +303,11 @@ export type MembershipSubscription = {
   name: string; studentName: string; email: string; status: string; paidUntil: string | null; blocked: boolean;
   cancelAtPeriodEnd: boolean; priceOre: number; vatPercent: number; interval: "month" | "year";
   hasAccess: boolean; createdAt: string; updatedAt: string;
+  groups: { id: number; name: string; available: boolean }[];
 };
 function subscriptionView(row: Row): MembershipSubscription {
   return { stripeId: str(row.stripe_id), userId: num(row.user_id), planId: num(row.plan_id), groupId: num(row.group_id),
+    groups: [],
     planName: str(row.plan_name), groupName: str(row.group_name), name: str(row.name), studentName: str(row.name), email: str(row.email),
     status: str(row.status), paidUntil: row.paid_until ? str(row.paid_until) : null, blocked: !!row.blocked,
     cancelAtPeriodEnd: !!row.cancel_at_period_end, priceOre: num(row.price_ore), vatPercent: num(row.vat_percent),
@@ -297,8 +317,18 @@ function subscriptionView(row: Row): MembershipSubscription {
 }
 const SUBSCRIPTIONS = `SELECT s.*,a.plan_name,g.name AS group_name,g.published AS group_published,u.name,u.email,u.role,u.email_verified_at FROM membership_subscriptions s
   JOIN membership_checkout_attempts a ON a.id=s.attempt_id JOIN membership_groups g ON g.id=s.group_id JOIN users u ON u.id=s.user_id`;
+async function subscriptionViews(rows: Row[]) {
+  return Promise.all(rows.map(async row => {
+    const view = subscriptionView(row);
+    let groups = await getDb().prepare(`SELECT ag.group_id AS id,ag.group_name AS name,g.published FROM membership_attempt_groups ag JOIN membership_groups g ON g.id=ag.group_id WHERE ag.attempt_id=? ORDER BY ag.group_name,ag.group_id`).all(str(row.attempt_id));
+    if (!groups.length) groups = [{ id: row.group_id, name: row.group_name, published: row.group_published }];
+    const paid = row.role === "student" && !!row.email_verified_at && !row.blocked && ["active", "past_due"].includes(str(row.status)) && Date.parse(str(row.paid_until)) > Date.now();
+    const mapped = groups.map(group => ({ id: num(group.id), name: str(group.name), available: paid && !!group.published }));
+    return { ...view, groups: mapped, groupName: mapped.map(group => group.name).join(" · "), hasAccess: mapped.some(group => group.available) };
+  }));
+}
 export async function getUserSubscriptions(userId: number) {
-  return (await getDb().prepare(`${SUBSCRIPTIONS} WHERE s.user_id=? ORDER BY s.created_at DESC`).all(userId)).map(subscriptionView);
+  return subscriptionViews(await getDb().prepare(`${SUBSCRIPTIONS} WHERE s.user_id=? ORDER BY s.created_at DESC`).all(userId));
 }
 export type MembershipPendingCheckout = {
   planId: number; planName: string; groupName: string; priceOre: number;
@@ -324,7 +354,7 @@ export async function getUserPendingCheckouts(userId: number): Promise<Membershi
 }
 export async function getAdminSubscriptions(actorId: number, groupId?: number) {
   if ((await getUser(actorId))?.role !== "admin") throw new DomainError("Du har inte tillgång till administrationen.");
-  return (await getDb().prepare(`${SUBSCRIPTIONS} ${groupId === undefined ? "" : "WHERE s.group_id=?"} ORDER BY s.created_at DESC`).all(...(groupId === undefined ? [] : [groupId]))).map(subscriptionView);
+  return subscriptionViews(await getDb().prepare(`${SUBSCRIPTIONS} ${groupId === undefined ? "" : "WHERE s.group_id=? OR EXISTS(SELECT 1 FROM membership_attempt_groups ag WHERE ag.attempt_id=s.attempt_id AND ag.group_id=?)"} ORDER BY s.created_at DESC`).all(...(groupId === undefined ? [] : [groupId, groupId])));
 }
 export async function getMembershipCheckoutConfirmation(userId: number, sessionId: string): Promise<{
   planName: string; groupId: number; confirmed: boolean; status: "pending" | "paid" | "cancelled";
@@ -335,7 +365,7 @@ export async function getMembershipCheckoutConfirmation(userId: number, sessionI
     JOIN membership_groups g ON g.id=a.group_id JOIN users u ON u.id=a.user_id
     LEFT JOIN membership_subscriptions s ON s.attempt_id=a.id WHERE a.user_id=? AND a.session_id=?`).get(userId, sessionId);
   if (!row) return null;
-  const confirmed = !!row.group_published && row.role === "student" && !!row.email_verified_at && !row.blocked &&
+  const confirmed = row.role === "student" && !!row.email_verified_at && !row.blocked &&
     ["active", "past_due"].includes(str(row.status)) && Date.parse(str(row.paid_until)) > Date.now();
   const cancelled = ["expired", "cancelled"].includes(str(row.checkout_status)) || !!row.blocked ||
     ["canceled", "incomplete_expired", "unpaid", "paused"].includes(str(row.status));
@@ -544,6 +574,8 @@ async function closeUnverifiableSubscription(subscription: Stripe.Subscription, 
     await assertLock(lockKey, token);
     await getDb().prepare("UPDATE membership_subscriptions SET status=?,blocked=1,cancel_at_period_end=?,updated_at=? WHERE stripe_id=?")
       .run(subscription.status, Number(subscription.cancel_at_period_end), now(), subscription.id);
+    const attempt = await getDb().prepare("SELECT * FROM membership_checkout_attempts WHERE id=?").get(str(existing.attempt_id));
+    if (attempt) await applyMembershipPurification(attempt,subscription.id,[],true);
     await getDb().prepare("INSERT INTO membership_billing_events(id,type,processed_at) VALUES(?,?,?) ON CONFLICT(id) DO NOTHING").run(event.id, event.type, now());
   });
   return true;
@@ -575,8 +607,8 @@ async function reconcileSubscription(subscriptionId: string, event: Stripe.Event
       if (invoiceSubscription(eventInvoice) !== subscriptionId) throw new MembershipVerificationError("Membership event invoice binding mismatch");
     }
     const latestInvoiceId = id(subscription.latest_invoice);
-    if (eventInvoice && eventInvoice.id !== latestInvoiceId)
-      await confirmedInvoice(eventInvoice, subscription, attempt, priceId, stripe);
+    const historicalPayment = eventInvoice && eventInvoice.id !== latestInvoiceId
+      ? await confirmedInvoice(eventInvoice, subscription, attempt, priceId, stripe) : null;
     const invoice = latestInvoiceId
       ? (eventInvoice?.id === latestInvoiceId ? eventInvoice : await stripe.invoices.retrieve(latestInvoiceId, {}, API_OPTIONS))
       : eventInvoice;
@@ -611,6 +643,7 @@ async function reconcileSubscription(subscriptionId: string, event: Stripe.Event
       if (flagged || payment?.blocked) await getDb().prepare("INSERT INTO membership_billing_revocations(subscription_id,reason,created_at) VALUES(?,'refund-or-dispute',?) ON CONFLICT(subscription_id) DO NOTHING").run(subscription.id, now());
       if (payment) await getDb().prepare(`INSERT INTO membership_paid_invoices(invoice_id,subscription_id,payment_intent_id,charge_id,period_start,period_end,amount_ore,created_at)
         VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(invoice_id) DO NOTHING`).run(payment.invoiceId, subscription.id, payment.paymentIntentId, payment.chargeId, payment.periodStart, payment.periodEnd, num(attempt.price_ore), now());
+      await applyMembershipPurification(attempt,subscription.id,[payment,historicalPayment].filter((p):p is NonNullable<typeof p>=>!!p),blocked);
       await getDb().prepare("UPDATE membership_checkout_attempts SET session_id=?,status='subscribed',lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=?").run(sessionId, now(), str(attempt.id));
       await getDb().prepare("INSERT INTO membership_billing_events(id,type,processed_at) VALUES(?,?,?)").run(event.id, event.type, now());
     });
@@ -620,6 +653,8 @@ async function reconcileSubscription(subscriptionId: string, event: Stripe.Event
     if (error instanceof MembershipVerificationError) await transaction(async () => {
       await assertLock(lockKey, token);
       await getDb().prepare("UPDATE membership_subscriptions SET blocked=1,updated_at=? WHERE stripe_id=?").run(now(), subscriptionId);
+      const source=await getDb().prepare("SELECT a.* FROM membership_checkout_attempts a JOIN membership_subscriptions s ON s.attempt_id=a.id WHERE s.stripe_id=?").get(subscriptionId);
+      if(source)await applyMembershipPurification(source,subscriptionId,[],true);
     });
     throw error;
   } finally {

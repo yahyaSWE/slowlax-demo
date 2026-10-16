@@ -4,7 +4,9 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, basename } from "node:path";
-import { createFirstAdmin, createUser, getDb, hasCourseAccess } from "../src/lib/db";
+import { createFirstAdmin, createUser, getDb, hasCourseAccess, getCourses, getPortalCourseSummaries, getCourseSummaries } from "../src/lib/db";
+import { getCourseBundle, getPublicCourseBundle, saveCourseBundle } from "../src/lib/course-bundles";
+import { getStudentGroupAccessState } from "../src/lib/student-access";
 import { hashPassword } from "../src/lib/security";
 import { getStripe } from "../src/lib/stripe";
 import { saveGroup, getAccessibleGroup, assignGroup } from "../src/lib/memberships";
@@ -12,9 +14,10 @@ import { getCoursePurchaseOffer, getCourseSalesSettings, saveCourseSalesSettings
 import { createCoursePurchaseCheckout, cancelCoursePurchaseCheckout, getCoursePurchaseConfirmation, getUserCoursePurchases,
   getUserPendingCoursePurchases, getAdminCoursePurchases, assertCoursePurchaseOrigin, readCoursePurchaseBody,
   coursePurchaseReady, reconcileCoursePurchaseEvent } from "../src/lib/course-purchase-billing";
-import { POST as webhook } from "../src/app/api/stripe/webhook/route";
+import { POST as webhook } from "../src/app/api/kurser/webhook/route";
 import { POST as checkoutRoute } from "../src/app/api/kurser/checkout/route";
 import { POST as cancelRoute } from "../src/app/api/kurser/cancel/route";
+import { savePurificationQuotaSettings, getPurificationBalance } from "../src/lib/purification-domain";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM", "TRUST_PROXY"]) delete process.env[key];
 const directory = mkdtempSync(join(tmpdir(), "tibb-course-purchase-billing-"));
@@ -127,7 +130,7 @@ function paidFixture(session = [...sessions.values()][0]): Fixture {
 }
 async function signed(object: Fixture, type = "checkout.session.completed", eventId = `evt_course_${++sequence}`) {
   const payload = JSON.stringify({ id: eventId, object: "event", type, created: Math.floor(Date.now() / 1000), data: { object } });
-  return webhook(new Request("https://courses.example.test/api/stripe/webhook", { method: "POST", body: payload,
+  return webhook(new Request("https://courses.example.test/api/kurser/webhook", { method: "POST", body: payload,
     headers: { "stripe-signature": getStripe().webhooks.generateTestHeaderString({ payload, secret: process.env.STRIPE_WEBHOOK_SECRET! }) } }));
 }
 async function settings(update: Record<string, unknown>) {
@@ -142,6 +145,8 @@ test("one-time checkout snapshots trusted price, group, VAT and terms for a veri
   assert.equal(await checkout(), "https://checkout.stripe.com/pay/isolated-course"); await checkout();
   assert.equal(sessions.size, 1); assert.equal(checkoutRequests.length, 1); assert.equal(customerRequests.length, 1); assert.equal(taxRequests.length, 1);
   const request = checkoutRequests[0].params;
+  assert.equal(request.metadata.application, "slowlax.se");
+  assert.equal(customerRequests[0].metadata.application, "slowlax.se");
   assert.equal(request.mode, "payment"); assert.equal(request.customer, `cus_course_${studentId}`); assert.ok(!request.customer_email);
   assert.equal(request.line_items[0].price_data.unit_amount, 499000); assert.equal(request.line_items[0].price_data.currency, "sek");
   assert.equal(request.line_items[0].price_data.tax_behavior, "inclusive"); assert.ok(!request.line_items[0].price_data.recurring);
@@ -367,13 +372,31 @@ test("renaming a course keeps accepted snapshot history but current navigation U
   assert.equal((await signed(value.session)).status, 200); assert.equal((await getUserCoursePurchases(studentId))[0].slug, "new-course-address");
 });
 
-test("shared booking webhook acknowledges foreign membership and shop sessions without booking retries", async () => {
-  for (const integration of ["membership", "shop"]) {
-    const object = { id: `cs_foreign_${integration}`, mode: "subscription", metadata: { application: "tibb.nu", integration }, payment_status: "paid" };
+test("course webhook acknowledges unrelated booking, membership and shop sessions without granting course access", async () => {
+  for (const integration of ["booking", "membership", "shop"]) {
+    const object = { id: `cs_foreign_${integration}`, mode: "subscription", metadata: { application: "slowlax.se", integration }, payment_status: "paid" };
     assert.equal((await signed(object)).status, 200);
     assert.equal(await reconcileCoursePurchaseEvent({ id: `evt_foreign_${integration}`, type: "checkout.session.completed", data: { object } } as any), false);
   }
   assert.equal((await getDb().prepare("SELECT COUNT(*) AS count FROM course_purchases").get())!.count, 0);
+});
+
+test("signed Tibb course events on a shared Stripe account are acknowledged without Slowlax purchases or retries", async () => {
+  const metadata = { application: "tibb.nu", integration: "course-purchase", course_purchase_attempt_id: "0".repeat(32) };
+  const session = { id: "cs_tibb_course", mode: "payment", metadata, payment_status: "paid" };
+  for (const type of ["checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"]) {
+    assert.equal((await signed(session, type)).status, 200);
+  }
+  const charge = { id: "ch_tibb_course", metadata, refunded: true };
+  charges.set(charge.id, charge);
+  assert.equal((await signed(charge, "charge.refunded")).status, 200);
+  for (const type of ["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"]) {
+    assert.equal((await signed({ id: "dp_tibb_course", charge: charge.id }, type)).status, 200);
+  }
+  assert.equal((await getDb().prepare("SELECT COUNT(*) AS count FROM course_purchase_events").get())!.count, 0);
+  assert.equal((await getUserCoursePurchases(studentId)).length, 0);
+  assert.equal(await hasCourseAccess(studentId, courseId), false);
+  assert.equal(await getAccessibleGroup(studentId, groupId), undefined);
 });
 
 test("signature, JSON size, same-origin and cross-site protections fail before mutations", async () => {
@@ -385,6 +408,62 @@ test("signature, JSON size, same-origin and cross-site protections fail before m
     const response = await route(new Request("https://courses.example.test/api/kurser", { method: "POST", headers: { origin: "https://evil.example.test", "content-type": "application/json" }, body: "{}" }));
     assert.equal(response.status, 403);
   }
-  assert.equal((await webhook(new Request("https://courses.example.test/api/stripe/webhook", { method: "POST", body: "{}", headers: { "stripe-signature": "invalid" } }))).status, 400);
-  assert.equal((await webhook(new Request("https://courses.example.test/api/stripe/webhook", { method: "POST", body: "x".repeat(1024 * 1024 + 1), headers: { "stripe-signature": "invalid" } }))).status, 413);
+  assert.equal((await webhook(new Request("https://courses.example.test/api/kurser/webhook", { method: "POST", body: "{}", headers: { "stripe-signature": "invalid" } }))).status, 400);
+  assert.equal((await webhook(new Request("https://courses.example.test/api/kurser/webhook", { method: "POST", body: "x".repeat(1024 * 1024 + 1), headers: { "stripe-signature": "invalid" } }))).status, 413);
+});
+
+test("a bundle grants its snapshotted courses and every group only after verified payment, survives offer edits and revokes only its source", async () => {
+  const secondGroup = await saveGroup(adminId, undefined, { name: "Bundle community", slug: `bundle-community-${++sequence}`, description: "Private community", published: true, courseIds: [] });
+  const bundleId = await saveCourseBundle(adminId, undefined, { title: "Bas-kit", slug: `bas-kit-${++sequence}`, description: "Two courses and two groups", priceOre: 599000, published: true, courseIds: [courseId, extraCourseId] });
+  const sales = await saveCourseSalesSettings(adminId, bundleId, { enabled: true, groupId, groupIds: [groupId, secondGroup], groupAccessDays: 30, vatPercent: 25, terms: "Permanent access to two courses and thirty days in both groups.", expectedUpdatedAt: null });
+  const offer = (await getCoursePurchaseOffer(bundleId))!;
+  assert.equal(offer.isBundle, true); assert.equal(offer.groups.length, 2);
+  const quota=await savePurificationQuotaSettings(adminId,'course_bundle',bundleId,{credits:3,expectedUpdatedAt:null});
+  await assert.rejects(createCoursePurchaseCheckout(studentId,bundleId,{consent:true,courseRevision:offer.courseRevision,settingsRevision:offer.settingsRevision,termsRevision:offer.termsRevision}),/reningar/);
+  await createCoursePurchaseCheckout(studentId, bundleId, { consent: true, courseRevision: offer.courseRevision, settingsRevision: offer.settingsRevision, termsRevision: offer.termsRevision, purificationRevision:quota.updatedAt });
+  await savePurificationQuotaSettings(adminId,'course_bundle',bundleId,{credits:9,expectedUpdatedAt:quota.updatedAt});
+  const session = [...sessions.values()][0], attemptId = session.client_reference_id;
+  assert.equal((await getUserPendingCoursePurchases(studentId))[0].isBundle, true);
+  assert.equal(await hasCourseAccess(studentId, courseId), false); assert.equal(await getAccessibleGroup(studentId, secondGroup), undefined);
+  await assert.rejects(getDb().prepare("UPDATE course_purchase_attempt_courses SET title='Changed' WHERE attempt_id=?").run(attemptId), /immutable/);
+  await assert.rejects(getDb().prepare("DELETE FROM course_purchase_attempt_groups WHERE attempt_id=?").run(attemptId), /immutable/);
+  const bundle = (await getCourseBundle(bundleId, adminId))!;
+  await saveCourseBundle(adminId, bundleId, { title: bundle.title, slug: bundle.slug, description: bundle.description, priceOre: 999000, published: false, courseIds: [courseId, extraCourseId], expectedUpdatedAt: bundle.updatedAt });
+  await saveCourseSalesSettings(adminId, bundleId, { enabled: false, groupId: null, groupIds: [], groupAccessDays: null, vatPercent: sales.vatPercent, terms: sales.terms, expectedUpdatedAt: sales.updatedAt });
+  const value = paidFixture(session); assert.equal((await signed(value.session)).status, 200);
+  assert.equal((await getPurificationBalance(studentId)).availableCredits,3);
+  assert.equal((await getPurificationBalance(studentId)).grants.at(-1)?.expiresAt,null);
+  assert.equal(await hasCourseAccess(studentId, courseId), true); assert.equal(await hasCourseAccess(studentId, extraCourseId), true);
+  assert.ok(await getAccessibleGroup(studentId, groupId)); assert.ok(await getAccessibleGroup(studentId, secondGroup));
+  const confirmation = (await getCoursePurchaseConfirmation(studentId, session.id))!;
+  assert.equal(confirmation.confirmed, true); assert.equal(confirmation.isBundle, true);
+  assert.deepEqual(confirmation.courses.map(course => course.id).sort(), [courseId, extraCourseId].sort());
+  assert.equal(confirmation.groups.length, 2); assert.ok(confirmation.courses.every(course => course.available));
+  const expectedExpiry = new Date((value.charge.created + 30 * 86400) * 1000).toISOString();
+  assert.equal((await getStudentGroupAccessState(studentId, secondGroup))!.expiresAt, expectedExpiry);
+  assert.equal(confirmation.groups.find(group => group.id === secondGroup)!.expiresAt, expectedExpiry);
+  assert.equal((await getPortalCourseSummaries(studentId)).some(course => course.id === bundleId), false);
+  assert.equal((await getCourses()).some(course => course.id === bundleId), false);
+  assert.equal((await getCourseSummaries()).find(course => course.id === courseId)!.enrollmentCount, 1);
+  assert.equal((await getAdminCoursePurchases(adminId, extraCourseId))[0].id, attemptId);
+  assert.equal(await getPublicCourseBundle(bundle.slug), undefined);
+  await getDb().prepare("INSERT INTO enrollments(user_id,course_id,created_at) VALUES(?,?,?)").run(studentId, courseId, new Date().toISOString());
+  await assignGroup(adminId, { email: "course-payment-student@example.test", groupId: secondGroup, expiresAt: null });
+  value.charge.refunded = true; value.charge.amount_refunded = value.charge.amount;
+  assert.equal((await signed(value.charge, "charge.refunded")).status, 200);
+  assert.equal((await getPurificationBalance(studentId)).availableCredits,0);
+  assert.equal(await hasCourseAccess(studentId, courseId), true); assert.equal(await hasCourseAccess(studentId, extraCourseId), false);
+  assert.equal(await getAccessibleGroup(studentId, groupId), undefined); assert.ok(await getAccessibleGroup(studentId, secondGroup));
+});
+
+test("a single course can include multiple independently gated groups and unpublished secondary groups stop new checkout", async () => {
+  const secondGroup = await saveGroup(adminId, undefined, { name: "Second alumni group", slug: `second-alumni-${++sequence}`, description: "Private", published: true, courseIds: [] });
+  const old = await getCourseSalesSettings(courseId);
+  await saveCourseSalesSettings(adminId, courseId, { enabled: old.enabled, groupId: old.groupId, groupAccessDays: old.groupAccessDays, vatPercent: old.vatPercent, terms: old.terms, groupIds: [groupId, secondGroup], expectedUpdatedAt: old.updatedAt });
+  await checkout(); const value = paidFixture(); assert.equal((await signed(value.session)).status, 200);
+  assert.ok(await getAccessibleGroup(studentId, secondGroup));
+  await getDb().prepare("UPDATE membership_groups SET published=0 WHERE id=?").run(secondGroup);
+  assert.equal(await getCoursePurchaseOffer(courseId), undefined);
+  assert.ok(await getAccessibleGroup(studentId, groupId)); assert.equal(await getAccessibleGroup(studentId, secondGroup), undefined);
+  assert.equal(await hasCourseAccess(studentId, courseId), true);
 });

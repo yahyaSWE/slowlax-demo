@@ -8,13 +8,14 @@ import type Stripe from "stripe";
 import { createFirstAdmin, createUser, getDb, hasCourseAccess } from "../src/lib/db";
 import { hashPassword } from "../src/lib/security";
 import { getStripe } from "../src/lib/stripe";
-import { saveGroup, savePlan, getAdminPlan, getMembershipSettings, saveMembershipSettings, assignGroup } from "../src/lib/memberships";
+import { saveGroup, savePlan, getAdminPlan, getMembershipSettings, saveMembershipSettings, assignGroup, getAccessibleGroup, getPublicPlanCourses } from "../src/lib/memberships";
 import { createMembershipCheckout, createMembershipPortal, getUserSubscriptions, getAdminSubscriptions,
   assertMembershipOrigin, readMembershipBody, membershipBillingReady, membershipPortalReady } from "../src/lib/membership-billing";
 import { cancelMembershipCheckout, getMembershipCheckoutConfirmation, getUserPendingCheckouts } from "../src/lib/membership-billing";
 import { POST as webhook } from "../src/app/api/medlemskap/webhook/route";
 import { POST as checkoutRoute } from "../src/app/api/medlemskap/checkout/route";
 import { POST as portalRoute } from "../src/app/api/medlemskap/portal/route";
+import { savePurificationQuotaSettings,getPurificationBalance } from "../src/lib/purification-domain";
 
 for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "RESEND_API_KEY", "EMAIL_FROM", "TRUST_PROXY"]) delete process.env[key];
 const directory = mkdtempSync(join(tmpdir(), "tibb-membership-billing-"));
@@ -150,12 +151,26 @@ async function signed(object: Fixture, type = "invoice.paid", eventId = `evt_fix
 }
 async function onlySub() { return (await getUserSubscriptions(studentId))[0]; }
 
+test("Rening membership quotas snapshot new consent, refresh per paid invoice and revoke with the paid source",async()=>{
+ const q=await savePurificationQuotaSettings(adminId,'membership_plan',planId,{credits:2,expectedUpdatedAt:null});
+ await assert.rejects(checkout(),/reningar/);
+ await createMembershipCheckout(studentId,planId,{...await consent(),purificationRevision:q.updatedAt});
+ await savePurificationQuotaSettings(adminId,'membership_plan',planId,{credits:7,expectedUpdatedAt:q.updatedAt});
+ const first=activeFixture();await signed(first.invoice);await signed(first.invoice);let balance=await getPurificationBalance(studentId);
+ assert.equal(balance.availableCredits,2);assert.equal(balance.grants[0].expiresAt,new Date(first.invoice.lines.data[0].period.end*1000).toISOString());
+ const next=activeFixture(first.session,'rening-renewal',31);await signed(next.invoice);balance=await getPurificationBalance(studentId);assert.equal(balance.grants.length,2);assert.ok(balance.grants.every(g=>g.totalCredits===2));
+ next.charge.refunded=true;next.charge.amount_refunded=next.charge.amount;await signed(next.charge,'charge.refunded');assert.equal((await getPurificationBalance(studentId)).availableCredits,0);await signed(first.invoice);assert.equal((await getPurificationBalance(studentId)).availableCredits,0);
+});
+
 test("checkout uses verified user identity, immutable server price and terms; retry reuses one subscription session", async () => {
   await assert.rejects(checkout(unverifiedId), /verifierat/); await assert.rejects(checkout(adminId), /verifierat/);
   await assert.rejects(createMembershipCheckout(studentId, planId, { ...await consent(), planRevision: "stale" }), /ändrats/);
   assert.equal(await checkout(), "https://checkout.stripe.com/pay/fixture");
   assert.equal(await hasCourseAccess(studentId, courseId), false);
   const request = checkoutRequests[0]; assert.equal(request.params.mode, "subscription"); assert.equal(request.params.customer, `cus_fixture_${studentId}`);
+  assert.equal(request.params.metadata.application, "slowlax.se");
+  assert.equal(request.params.subscription_data.metadata.application, "slowlax.se");
+  assert.equal(customerRequests[0].metadata.application, "slowlax.se");
   assert.equal(request.params.line_items[0].price_data.unit_amount, 12000); assert.equal(request.params.line_items[0].price_data.currency, "sek");
   assert.deepEqual(request.params.line_items[0].price_data.recurring, { interval: "month", interval_count: 1 });
   assert.equal(request.params.line_items[0].price_data.tax_behavior, "inclusive"); assert.ok(!request.params.customer_email);
@@ -295,8 +310,37 @@ test("HTTP origin and bounded request bodies reject abuse; unsigned and foreign 
   assert.equal((await webhook(new Request("https://membership.example.test/api/medlemskap/webhook", { method: "POST", headers: { "stripe-signature": "t=1,v1=forged" }, body: "{}" }))).status, 400);
   assert.equal((await signed({ id: "cs_foreign", metadata: { application: "elsewhere" } }, "checkout.session.completed")).status, 200);
   assert.equal((await signed({ id: "sub_foreign", metadata: { application: "elsewhere" } }, "customer.subscription.updated")).status, 200);
-  assert.equal((await signed({ id: "cs_own_missing", metadata: { application: "tibb.nu", integration: "membership", membership_attempt_id: "0".repeat(32) } }, "checkout.session.completed")).status, 500);
+  assert.equal((await signed({ id: "cs_own_missing", metadata: { application: "slowlax.se", integration: "membership", membership_attempt_id: "0".repeat(32) } }, "checkout.session.completed")).status, 500);
   assert.equal((await getUserSubscriptions(studentId)).length, 0);
+});
+
+test("signed Tibb membership events on a shared Stripe account are acknowledged without Slowlax access or retries", async () => {
+  const metadata = { application: "tibb.nu", integration: "membership", membership_attempt_id: "0".repeat(32) };
+  const session = { id: "cs_tibb_membership", mode: "subscription", metadata, payment_status: "paid" };
+  for (const type of ["checkout.session.completed", "checkout.session.expired", "checkout.session.async_payment_succeeded", "checkout.session.async_payment_failed"]) {
+    assert.equal((await signed(session, type)).status, 200);
+  }
+  const subscription = { id: "sub_tibb_membership", metadata, status: "active" };
+  subscriptions.set(subscription.id, subscription);
+  for (const type of ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "customer.subscription.paused", "customer.subscription.resumed"]) {
+    assert.equal((await signed(subscription, type)).status, 200);
+  }
+  const invoice = { id: "in_tibb_membership", status: "paid", parent: {
+    type: "subscription_details", subscription_details: { subscription: subscription.id, metadata },
+  } };
+  invoices.set(invoice.id, invoice);
+  for (const type of ["invoice.paid", "invoice.payment_failed", "invoice.payment_action_required", "invoice.marked_uncollectible", "invoice.voided", "invoice.finalization_failed"]) {
+    assert.equal((await signed(invoice, type)).status, 200);
+  }
+  const charge = { id: "ch_tibb_membership", metadata, refunded: true };
+  charges.set(charge.id, charge);
+  assert.equal((await signed(charge, "charge.refunded")).status, 200);
+  for (const type of ["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"]) {
+    assert.equal((await signed({ id: "dp_tibb_membership", charge: charge.id }, type)).status, 200);
+  }
+  assert.equal((await getDb().prepare("SELECT COUNT(*) AS count FROM membership_billing_events").get())!.count, 0);
+  assert.equal((await getUserSubscriptions(studentId)).length, 0);
+  assert.equal(await hasCourseAccess(studentId, courseId), false);
 });
 
 test("a price edit during Stripe creation expires that session and releases the changed offer for retry", async () => {
@@ -526,4 +570,40 @@ test("a draft renewal without calculated VAT totals preserves only the previousl
   assert.equal((await signed(renewal.invoice, "invoice.finalization_failed")).status, 200);
   assert.equal((await onlySub()).paidUntil, paidUntil); assert.equal((await onlySub()).blocked, false);
   assert.equal(await hasCourseAccess(studentId, courseId), true);
+});
+
+test("membership snapshots all groups, blocks overlapping secondary purchases and keeps paid confirmation when the primary group is hidden", async () => {
+  const timestamp = new Date().toISOString();
+  const secondaryCourse = Number((await getDb().prepare("INSERT INTO courses(title,slug,price_ore,published,created_at,updated_at) VALUES(?,?,10000,1,?,?)")
+    .run("Secondary member course", `secondary-member-course-${++sequence}`, timestamp, timestamp)).lastInsertRowid);
+  const second = await saveGroup(adminId, undefined, { name: "Second paid group", slug: `second-paid-${++sequence}`, description: "Private", published: true, courseIds: [secondaryCourse] });
+  const third = await saveGroup(adminId, undefined, { name: "Future paid group", slug: `future-paid-${++sequence}`, description: "Private", published: true, courseIds: [] });
+  const original = (await getAdminPlan(adminId, planId))!;
+  await savePlan(adminId, planId, { ...original, groupIds: [groupId, second], expectedUpdatedAt: original.updatedAt });
+  assert.deepEqual((await getPublicPlanCourses(planId)).map(course => course.id).sort(), [courseId, secondaryCourse].sort());
+  await checkout(); const session = [...sessions.values()][0];
+  assert.equal(await getAccessibleGroup(studentId, second), undefined);
+  const overlappingPlanId = await savePlan(adminId, undefined, { name: "Secondary group only", slug: `secondary-only-${++sequence}`, description: "Fixture", groupId: second, groupIds: [second], priceOre: 8000, vatPercent: 25, interval: "month", published: true });
+  const overlapConsent = { consent: true as const, planRevision: (await getAdminPlan(adminId, overlappingPlanId))!.updatedAt, termsRevision: (await getMembershipSettings()).updatedAt };
+  await assert.rejects(createMembershipCheckout(studentId, overlappingPlanId, overlapConsent), /pågår redan/);
+  const edited = (await getAdminPlan(adminId, planId))!;
+  await savePlan(adminId, planId, { ...edited, groupIds: [groupId, third], expectedUpdatedAt: edited.updatedAt });
+  const value = activeFixture(session); assert.equal((await signed(value.invoice)).status, 200);
+  assert.ok(await getAccessibleGroup(studentId, second)); assert.equal(await getAccessibleGroup(studentId, third), undefined);
+  assert.equal(await hasCourseAccess(studentId, secondaryCourse), true);
+  assert.equal((await getAdminSubscriptions(adminId, second))[0].stripeId, value.subscription.id);
+  assert.deepEqual((await onlySub()).groups.map(group => group.id).sort(), [groupId, second].sort());
+  await assert.rejects(createMembershipCheckout(studentId, overlappingPlanId, overlapConsent), /redan ett medlemskap/);
+  await getDb().prepare("UPDATE membership_groups SET published=0 WHERE id=?").run(groupId);
+  assert.equal((await onlySub()).hasAccess, true); assert.equal((await getMembershipCheckoutConfirmation(studentId, session.id))!.confirmed, true);
+  assert.equal((await onlySub()).groups.find(group => group.id === groupId)!.available, false);
+  assert.equal((await onlySub()).groups.find(group => group.id === second)!.available, true);
+  await assert.rejects(getDb().prepare("UPDATE membership_attempt_groups SET group_name='Changed' WHERE attempt_id=?").run(session.client_reference_id), /immutable/);
+  await assert.rejects(getDb().prepare("INSERT INTO membership_attempt_groups(attempt_id,group_id,group_name) VALUES(?,?,?)").run(session.client_reference_id, third, "Future paid group"), /reference/);
+  await getDb().prepare("UPDATE membership_groups SET published=1 WHERE id=?").run(groupId);
+  await assignGroup(adminId, { email: "billing-student@example.test", groupId: second, expiresAt: null });
+  value.charge.refunded = true; value.charge.amount_refunded = value.charge.amount;
+  assert.equal((await signed(value.charge, "charge.refunded")).status, 200);
+  assert.equal(await getAccessibleGroup(studentId, groupId), undefined); assert.ok(await getAccessibleGroup(studentId, second));
+  assert.equal(await hasCourseAccess(studentId, courseId), false); assert.equal(await hasCourseAccess(studentId, secondaryCourse), true);
 });

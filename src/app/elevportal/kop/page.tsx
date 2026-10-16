@@ -24,7 +24,7 @@ export default async function CoursePurchasesPage({ searchParams }: {
         <h3>{attempt.title}</h3>
         <p>{formatMoney(attempt.priceOre)} · {attempt.canCancel ? `Betalningslänken gäller till ${formatDateTime(attempt.expiresAt)}.` : "Betalningen behandlas. Vi inväntar Stripes bekräftelse."}</p>
         <div className="membership-actions">
-          <Link href={`/kurser/${encodeURIComponent(attempt.slug)}`} className="button button-primary">Till kurssidan</Link>
+          <Link href={`/${attempt.isBundle ? "paket" : "kurser"}/${encodeURIComponent(attempt.slug)}`} className="button button-primary">{attempt.isBundle ? "Till paketet" : "Till kurssidan"}</Link>
           {attempt.canCancel && <CoursePurchaseCancelButton courseId={attempt.courseId} />}
         </div>
       </article>)}</div>

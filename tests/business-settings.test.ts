@@ -28,14 +28,15 @@ after(async () => {
   await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });
 
-test("owner facts are defaulted without inventing contact, fees or privacy decisions", async () => {
+test("Slowlax defaults do not invent legal identity, access duration or privacy decisions", async () => {
   assert.deepEqual(await getBusinessSettings(), DEFAULT_BUSINESS_SETTINGS);
-  assert.equal(DEFAULT_BUSINESS_SETTINGS.legalName, "Joart Group AB");
-  assert.equal(DEFAULT_BUSINESS_SETTINGS.organizationNumber, "559363-3893");
+  assert.equal(DEFAULT_BUSINESS_SETTINGS.legalName, "");
+  assert.equal(DEFAULT_BUSINESS_SETTINGS.organizationNumber, "");
   assert.equal(DEFAULT_BUSINESS_SETTINGS.cancellationHours, 24);
   assert.equal(DEFAULT_BUSINESS_SETTINGS.cancellationDetails, "");
-  assert.equal(missingPrivacyInformation(DEFAULT_BUSINESS_SETTINGS).length, 4);
-  assert.match(DEFAULT_BUSINESS_SETTINGS.courseAccessDescription, /utan tidsgräns/);
+  assert.equal(missingPrivacyInformation(DEFAULT_BUSINESS_SETTINGS).length, 3);
+  assert.doesNotMatch(DEFAULT_BUSINESS_SETTINGS.courseAccessDescription, /utan tidsgräns/);
+  assert.equal(businessSettingsSchema.safeParse(DEFAULT_BUSINESS_SETTINGS).success, true);
 });
 
 test("business information persists validated values and rejects non-admin or stale-role callers", async () => {

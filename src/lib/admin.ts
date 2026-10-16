@@ -287,8 +287,6 @@ export async function saveSettings(
     phone: string;
     address: string;
     location: string;
-    payOnSite: boolean;
-    stripeEnabled: boolean;
   },
 ) {
   await assertAdmin(actorId);
@@ -299,24 +297,11 @@ export async function saveSettings(
       phone: text(40),
       address: text(500),
       location: text(200),
-      payOnSite: z.boolean(),
-      stripeEnabled: z.boolean(),
     })
     .parse(input);
-  if (
-    value.stripeEnabled &&
-    (!process.env.STRIPE_SECRET_KEY ||
-      !process.env.STRIPE_WEBHOOK_SECRET ||
-      !process.env.APP_URL)
-  )
-    throw new DomainError(
-      "Lägg till Stripe-nycklar, webhook-hemlighet och APP_URL på servern innan du aktiverar kortbetalning.",
-    );
-  if (!value.payOnSite && !value.stripeEnabled)
-    throw new DomainError("Minst ett betalningssätt måste vara aktiverat.");
   await getDb()
     .prepare(
-      "UPDATE settings SET site_name=?,email=?,phone=?,address=?,location=?,pay_on_site=?,stripe_enabled=? WHERE id=1",
+      "UPDATE settings SET site_name=?,email=?,phone=?,address=?,location=? WHERE id=1",
     )
     .run(
       value.siteName,
@@ -324,8 +309,6 @@ export async function saveSettings(
       value.phone,
       value.address,
       value.location,
-      value.payOnSite ? 1 : 0,
-      value.stripeEnabled ? 1 : 0,
     );
 }
 export async function saveArticle(

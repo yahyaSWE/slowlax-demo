@@ -336,7 +336,7 @@ export async function getCourses(
   return (
     await getDb()
       .prepare(
-        `SELECT * FROM courses ${options.publishedOnly ? "WHERE published=1" : ""} ORDER BY id DESC`,
+        `SELECT * FROM courses WHERE NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=courses.id) ${options.publishedOnly ? "AND published=1" : ""} ORDER BY id DESC`,
       )
       .all()
   ).map(course);
@@ -359,7 +359,13 @@ export async function getCourseSummaries(): Promise<CourseSummary[]> {
              JOIN course_purchase_attempts ca ON ca.id=cp.attempt_id AND ca.status='paid'
              JOIN users cu ON cu.id=cp.user_id AND cu.role='student' AND cu.email_verified_at IS NOT NULL
              WHERE cp.revoked=0 AND julianday(cp.paid_at)<=julianday('now')
+           UNION
+           SELECT sc.course_id,cp.user_id FROM course_purchase_attempt_courses sc JOIN course_purchases cp ON cp.attempt_id=sc.attempt_id
+             JOIN course_purchase_attempts ca ON ca.id=cp.attempt_id AND ca.status='paid'
+             JOIN users cu ON cu.id=cp.user_id AND cu.role='student' AND cu.email_verified_at IS NOT NULL
+             WHERE cp.revoked=0 AND julianday(cp.paid_at)<=julianday('now')
          ) GROUP BY course_id) e ON e.course_id=c.id
+         WHERE NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=c.id)
          ORDER BY c.id DESC`,
       )
       .all()
@@ -385,7 +391,8 @@ export async function getPortalCourseSummaries(
          LEFT JOIN enrollments e ON e.course_id=c.id AND e.user_id=u.id
          LEFT JOIN (SELECT course_id,COUNT(*) AS total FROM lessons GROUP BY course_id) l ON l.course_id=c.id
          LEFT JOIN (SELECT l.course_id,COUNT(*) AS total FROM progress p JOIN lessons l ON l.id=p.lesson_id WHERE p.user_id=? GROUP BY l.course_id) p ON p.course_id=c.id
-         WHERE u.role='admin' OR (u.role='student' AND c.published=1 AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()} OR ${coursePurchaseAccessSql()}))
+         WHERE NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=c.id)
+           AND (u.role='admin' OR (u.role='student' AND c.published=1 AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()} OR ${coursePurchaseAccessSql()})))
          ORDER BY CASE WHEN u.role='admin' THEN c.id END DESC,e.created_at DESC,c.id DESC`,
       )
       .all(userId, userId)
@@ -410,7 +417,7 @@ export async function getCourse(
 ) {
   const row = await getDb()
     .prepare(
-      `SELECT * FROM courses WHERE slug=? ${options.publishedOnly ? "AND published=1" : ""}`,
+      `SELECT * FROM courses WHERE slug=? AND NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=courses.id) ${options.publishedOnly ? "AND published=1" : ""}`,
     )
     .get(slug);
   return row ? course(row) : undefined;
@@ -553,7 +560,8 @@ export async function getStudentCourses(userId: number): Promise<Course[]> {
     await getDb()
       .prepare(
         `SELECT c.* FROM courses c JOIN users u ON u.id=? LEFT JOIN enrollments e ON e.course_id=c.id AND e.user_id=u.id
-         WHERE u.role='student' AND c.published=1 AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()} OR ${coursePurchaseAccessSql()}) ORDER BY e.created_at DESC,c.id DESC`,
+         WHERE u.role='student' AND c.published=1 AND NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=c.id)
+           AND (e.id IS NOT NULL OR ${membershipCourseAccessSql()} OR ${coursePurchaseAccessSql()}) ORDER BY e.created_at DESC,c.id DESC`,
       )
       .all(userId)
   ).map(course);

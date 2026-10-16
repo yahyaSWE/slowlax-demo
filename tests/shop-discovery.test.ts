@@ -9,7 +9,7 @@ before(async () => {
   const env = { ...process.env };
   for (const key of ["TURSO_DATABASE_URL", "TURSO_AUTH_TOKEN", "VERCEL", "VERCEL_URL", "VERCEL_PROJECT_PRODUCTION_URL", "APP_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "SHOP_STRIPE_WEBHOOK_SECRET", "RESEND_API_KEY", "EMAIL_FROM", "EMAIL_NOTIFICATION_TO"]) delete env[key];
   env.TIBB_DATABASE_PATH = ":memory:";
-  env.SITE_URL = "https://tibbnu.vercel.app";
+  env.SITE_URL = "https://slowlax.se";
   env.NODE_ENV = "production";
   env.VERCEL_ENV = "production";
   const source = `
@@ -45,12 +45,11 @@ test("closed stores are absent from both search discovery files even if products
     assert.ok(!snapshot.text.includes("visible-product"));
   }
 });
-test("opening a store exposes only published products and removing publication removes discovery", () => {
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik"));
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik/villkor"));
-  assert.ok(snapshots.open.urls.includes("https://tibbnu.vercel.app/butik/visible-product"));
-  assert.ok(snapshots.open.text.includes("/butik/visible-product"));
+test("legacy shop settings cannot expose products in Slowlax search discovery", () => {
   for (const snapshot of Object.values(snapshots)) {
+    assert.ok(!snapshot.urls.some(url => url.includes("/butik")));
+    assert.ok(!snapshot.text.includes("/butik"));
+    assert.ok(!snapshot.text.includes("visible-product"));
     assert.ok(!snapshot.urls.some(url => /secret-draft|secret=/.test(url)));
     assert.ok(!snapshot.text.includes("SECRET_DRAFT_PRODUCT"));
     assert.ok(!snapshot.text.includes("secret=1"));

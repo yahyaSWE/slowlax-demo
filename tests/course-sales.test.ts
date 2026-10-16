@@ -9,11 +9,12 @@ import { createFirstAdmin, createUser, getDb, getAccessibleCourse, getPortalCour
   getCourseSummaries, getStudentCourses, hasCourseAccess, type User } from "../src/lib/db";
 import { markLesson } from "../src/lib/admin";
 import { assignGroup, getAccessibleGroup, getAccessiblePost, getAdminGroup, getPortalGroups, removeAssignment, saveGroup, savePost } from "../src/lib/memberships";
-import { getCoursePurchaseOffer, getCourseSalesSettings, getPublicCourseSalesSettings, saveCourseSalesSettings,
+import { getCoursePurchaseOffer, getCourseSalesSettings, getPublicCourseSalesSettings, getPublicCourseSalesDetails, saveCourseSalesSettings,
   hasPermanentCourseAccess, type CourseSalesSettingsInput } from "../src/lib/course-sales";
 import { getStudentLessonActivities, saveCourseActivity, saveAssignment, submitQuiz } from "../src/lib/course-activities";
 import { getReadableUpload } from "../src/lib/uploads";
 import { getReadableGroupUpload } from "../src/lib/membership-uploads";
+import { saveCourseBundle, getCourseBundle, getPublicCourseBundle } from "../src/lib/course-bundles";
 
 const directory = mkdtempSync(join(tmpdir(), "tibb-course-sales-"));
 delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN; delete process.env.VERCEL;
@@ -76,7 +77,7 @@ after(async () => {
 
 test("sales start disabled without writes; admin edits preserve revisions and require viable offers", async () => {
   const { courseId } = await courseFixture();
-  assert.deepEqual(await getCourseSalesSettings(courseId), { courseId, enabled: false, groupId: null, groupAccessDays: null,
+  assert.deepEqual(await getCourseSalesSettings(courseId), { courseId, enabled: false, groupId: null, groupIds: [], groupAccessDays: null,
     vatPercent: 25, terms: "", updatedAt: null });
   assert.equal(await getCoursePurchaseOffer(courseId), undefined);
   assert.equal((await getDb().prepare("SELECT COUNT(*) total FROM course_sales_settings WHERE course_id=?").get(courseId))!.total, 0);
@@ -271,4 +272,53 @@ test("admin student counts union permanent purchase and manual enrollments witho
   await getDb().prepare("UPDATE course_purchases SET revoked=1,revocation_reason='refund',updated_at=? WHERE id=?").run(now(), outsideSource);
   summaries = await getCourseSummaries();
   assert.equal(summaries.find(c => c.id === bought.courseId)!.enrollmentCount, 1);
+});
+
+test("bundle editing validates real distinct courses, publication and stale writes; group selections validate every reference", async () => {
+  const first = await courseFixture(), second = await courseFixture(), draft = await courseFixture(false);
+  const bundleInput = { title: "Bas-kit", slug: `bas-kit-${randomUUID()}`, description: "Två kurser i ett paket", priceOre: 599000,
+    published: true, courseIds: [first.courseId, second.courseId] };
+  await assert.rejects(saveCourseBundle(buyer.id, undefined, bundleInput), /behörighet/);
+  await assert.rejects(saveCourseBundle(admin.id, undefined, { ...bundleInput, courseIds: [first.courseId] }), /minst två/);
+  await assert.rejects(saveCourseBundle(admin.id, undefined, { ...bundleInput, courseIds: [first.courseId, first.courseId] }), /en gång/);
+  await assert.rejects(saveCourseBundle(admin.id, undefined, { ...bundleInput, courseIds: [first.courseId, 999999] }), /befintliga/);
+  await assert.rejects(saveCourseBundle(admin.id, undefined, { ...bundleInput, courseIds: [first.courseId, draft.courseId] }), /Publicera/);
+  const id = await saveCourseBundle(admin.id, undefined, bundleInput), current = (await getCourseBundle(id, admin.id))!;
+  assert.equal((await getPublicCourseBundle(bundleInput.slug))!.courses.length, 2);
+  await assert.rejects(saveCourseBundle(admin.id, undefined, { ...bundleInput, slug: `nested-${randomUUID()}`, courseIds: [id, first.courseId] }), /enskilda/);
+  await saveCourseBundle(admin.id, id, { ...bundleInput, description: "Uppdaterat paket", expectedUpdatedAt: current.updatedAt });
+  await assert.rejects(saveCourseBundle(admin.id, id, { ...bundleInput, expectedUpdatedAt: current.updatedAt }), /ändrats/);
+  const groupA = await groupFixture(), groupB = await groupFixture(), groupDraft = await groupFixture([], false);
+  await assert.rejects(saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, groupA] })), /en gång/);
+  await assert.rejects(saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, 999999] })), /grupp/);
+  await assert.rejects(saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, groupDraft] })), /Publicera/);
+  const saved = await saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, groupB] }));
+  assert.deepEqual((await getCourseSalesSettings(id)).groupIds, [groupA, groupB]);
+  await getDb().prepare("UPDATE courses SET published=0 WHERE id=?").run(second.courseId);
+  assert.equal(await getPublicCourseBundle(bundleInput.slug), undefined); assert.equal(await getCoursePurchaseOffer(id), undefined);
+  await assert.rejects(saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, groupB], expectedUpdatedAt: saved.updatedAt })), /publicerade kurser/);
+});
+
+test("published bundle contents and terms remain visible without Stripe while hidden groups and courses never leak", async () => {
+  const first = await courseFixture(), second = await courseFixture(), groupA = await groupFixture(), groupB = await groupFixture();
+  const id = await saveCourseBundle(admin.id, undefined, { title: "Bas-kit utan betalanslutning", slug: `public-bundle-${randomUUID()}`,
+    description: "Två kurser och grupper", priceOre: 599000, published: true, courseIds: [first.courseId, second.courseId] });
+  const settings = await saveCourseSalesSettings(admin.id, id, input({ groupId: groupA, groupIds: [groupA, groupB], groupAccessDays: 90 }));
+  const secretKey = process.env.STRIPE_SECRET_KEY, webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  delete process.env.STRIPE_SECRET_KEY; delete process.env.STRIPE_WEBHOOK_SECRET;
+  try {
+    assert.equal(await getCoursePurchaseOffer(id), undefined);
+    const details = (await getPublicCourseSalesDetails(id))!;
+    assert.deepEqual(details.groups.map(group => group.id), [groupA, groupB]);
+    assert.ok(details.groups.every(group => group.name === "Köpargrupp" && group.accessDays === 90));
+    assert.equal(details.terms, settings.terms);
+    await getDb().prepare("UPDATE membership_groups SET published=0 WHERE id=?").run(groupB);
+    assert.equal(await getPublicCourseSalesDetails(id), undefined);
+    await getDb().prepare("UPDATE membership_groups SET published=1 WHERE id=?").run(groupB);
+    await getDb().prepare("UPDATE courses SET published=0 WHERE id=?").run(second.courseId);
+    assert.equal(await getPublicCourseSalesDetails(id), undefined);
+  } finally {
+    if (secretKey !== undefined) process.env.STRIPE_SECRET_KEY = secretKey;
+    if (webhookSecret !== undefined) process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
+  }
 });

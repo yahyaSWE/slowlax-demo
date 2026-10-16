@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowLeft, Leaf, LogOut } from "lucide-react";
+import { ArrowLeft, ChartNoAxesCombined, LogOut } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/lib/actions";
 import { PRIVATE_METADATA } from "@/lib/seo";
@@ -27,9 +27,9 @@ export default async function PortalLayout({
       </a>
       <header className="portal-header">
         <Link className="portal-brand" href="/elevportal">
-          <Leaf size={25} strokeWidth={1.6} />
+          <ChartNoAxesCombined size={25} strokeWidth={1.6} />
           <span>
-            Tibb<span className="brand-dot">.</span>
+            Slowlax
             <small>Elevportal</small>
           </span>
         </Link>
@@ -56,7 +56,7 @@ export default async function PortalLayout({
         {children}
       </main>
       <footer className="portal-footer">
-        Tibb.nu · Kunskap med rötter. Omsorg med mening.
+        Slowlax · Kunskap för medvetna investeringar.
       </footer>
     </div>
   );

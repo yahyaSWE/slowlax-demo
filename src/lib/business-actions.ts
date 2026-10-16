@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { requireAdmin } from "./auth";
 import { DomainError } from "./db";
-import { saveBusinessSettings, saveCourseInformation } from "./business-settings";
+import { getBusinessSettings, saveBusinessSettings, saveCourseInformation } from "./business-settings";
 import { revalidateMutation } from "./revalidation";
 import { businessSettingsSchema, courseInformationSchema } from "./business-config";
 import type { BusinessFormState } from "./business-form-state";
@@ -15,7 +15,12 @@ function errorMessage(error: unknown) {
 export async function saveBusinessSettingsForm(_previous: BusinessFormState, form: FormData): Promise<BusinessFormState> {
   const user = await requireAdmin();
   try {
-    const input = Object.fromEntries(Object.keys(businessSettingsSchema.shape).map((key) => [key, String(form.get(key) ?? "")]));
+    // Preserve legacy booking metadata without exposing it in this site's form.
+    const current = await getBusinessSettings();
+    const legacyKeys = new Set(["cancellationHours", "cancellationDetails", "bookingRetention"]);
+    const input = Object.fromEntries(Object.keys(businessSettingsSchema.shape).map((key) => [key,
+      legacyKeys.has(key) ? current[key as keyof typeof current] : String(form.get(key) ?? ""),
+    ]));
     await saveBusinessSettings(user.id, input);
   } catch (error) { return { error: errorMessage(error), success: null }; }
   revalidateMutation("/admin/installningar", "/admin/installningar");

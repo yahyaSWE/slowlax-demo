@@ -8,7 +8,7 @@ import {
   Check,
   Clock,
   LockKeyhole,
-  Sprout,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { getLessonOutline, hasCourseAccess } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -91,7 +91,7 @@ export default async function CoursePage({
       </nav>
       <div className="course-detail-grid">
         <div>
-          <p className="eyebrow">Tibb akademi · Onlinekurs</p>
+          <p className="eyebrow">Slowlax akademi · Onlinekurs</p>
           <h1 className="page-title">{course.title}</h1>
           <TextContent text={course.description} />
           {([
@@ -132,22 +132,22 @@ export default async function CoursePage({
               </ol>
             ) : (
               <p className="muted">
-                Kursens lektioner presenteras här inom kort.
+                Kursens lektionsmaterial har inte lagts in i denna elevportal ännu. Kontakta oss för information om kursinnehåll och tillgång.
               </p>
             )}
           </div>
           {offer && (
             <section className="course-information-section prose">
               <h2>Köpvillkor för kursen</h2>
-              <p>Kursen säljs av {business.legalName}, organisationsnummer {business.organizationNumber}.</p>
+              {business.legalName && <p>Kursen säljs av {business.legalName}{business.organizationNumber ? `, organisationsnummer ${business.organizationNumber}` : ""}.</p>}
               <TextContent text={offer.terms} />
-              <p><Link href="/kontakt" className="inline-link">Kontakta oss om kursköpet</Link> · <Link href="/villkor" className="inline-link">Boknings- och kursvillkor</Link></p>
+              <p><Link href="/kontakt" className="inline-link">Kontakta oss om kursköpet</Link> · <Link href="/villkor" className="inline-link">Kurs- och medlemsvillkor</Link></p>
             </section>
           )}
         </div>
         <aside className="course-enrollment panel">
           <div className="course-enrollment-art" aria-hidden="true">
-            <Sprout size={103} strokeWidth={0.85} />
+            <ChartNoAxesCombined size={103} strokeWidth={0.85} />
           </div>
           <p className="eyebrow">En investering i din kunskap</p>
           <p className="course-price">{formatPrice(course.priceOre)}</p>
@@ -163,7 +163,7 @@ export default async function CoursePage({
             <li>
               <Check size={16} /> Följ dina framsteg lektion för lektion
             </li>
-            {offer?.groupName && <li><Check size={16} /> Gruppen {offer.groupName} ingår{offer.groupAccessDays === null ? " utan tidsgräns" : ` i ${offer.groupAccessDays} dagar efter betalningen`}.</li>}
+            {offer?.groups.map(group => <li key={group.id}><Check size={16} /> Gruppen {group.name} ingår{group.accessDays === null ? " utan tidsgräns" : ` i ${group.accessDays} dagar efter betalningen`}.</li>)}
           </ul>
           {hasAccess && (
             <Link
@@ -188,7 +188,7 @@ export default async function CoursePage({
                 Anmäl ditt intresse <ArrowRight size={17} />
               </Link>
               <p className="small muted">
-                Tibb.nu hjälper dig med anmälan och tilldelar sedan kursåtkomst.
+                Slowlax hjälper dig med anmälan och tilldelar sedan kursåtkomst.
               </p>
             </>
           ) : null}
@@ -203,7 +203,7 @@ export default async function CoursePage({
               </Link>
             </p>
           )}
-          <p className="small muted"><Link href="/villkor" className="inline-link">Villkor för kurser och bokning</Link></p>
+          <p className="small muted"><Link href="/villkor" className="inline-link">Kurs- och medlemsvillkor</Link></p>
         </aside>
       </div>
     </section>

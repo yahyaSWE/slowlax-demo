@@ -16,12 +16,7 @@ const privacyFields = [
   [
     "legalBasis",
     "Ändamål och rättslig grund",
-    "Ange er bedömning för bokningar, elevkonton, kursuppgifter, säkerhet och betalningar. Bedöm även om behandling av uppgifter om hälsa kräver ytterligare stöd.",
-  ],
-  [
-    "bookingRetention",
-    "Hur länge sparas bokningsuppgifter?",
-    "Beskriv verklig lagringstid eller kriterier och hur uppgifter rensas. Bokföringsunderlag och bokningshistorik behöver bedömas var för sig.",
+    "Ange er bedömning för elevkonton, kursuppgifter, säkerhet, medlemskap och betalningar.",
   ],
   [
     "studentRetention",
@@ -96,7 +91,7 @@ export function BusinessSettingsForm({
       >
         <SectionHeading
           title="Verksamhetsuppgifter och villkor"
-          description="Uppgifterna visas på kontakt-, villkors- och integritetssidan. Återbudsregeln visas även före bokning."
+          description="Uppgifterna visas på kontakt-, villkors- och integritetssidan."
         />
         <div className="form-grid">
           <Field label="Juridiskt namn" name="business-legalName">
@@ -125,31 +120,6 @@ export function BusinessSettingsForm({
             />
           </Field>
         </div>
-        <Field
-          label="Senaste återbud (timmar före besöket)"
-          name="business-cancellationHours"
-        >
-          <input
-            id="business-cancellationHours"
-            name="cancellationHours"
-            type="number"
-            required
-            min={1}
-            max={336}
-            value={values.cancellationHours}
-            onChange={(e) =>
-              setValues({
-                ...values,
-                cancellationHours: Number(e.target.value),
-              })
-            }
-          />
-        </Field>
-        {text(
-          "cancellationDetails",
-          "Kompletterande avbokningsvillkor",
-          "Ange eventuell regel för sent återbud eller uteblivet besök. Ingen avgift läggs till automatiskt.",
-        )}
         {text(
           "courseAccessDescription",
           "Kursåtkomst",

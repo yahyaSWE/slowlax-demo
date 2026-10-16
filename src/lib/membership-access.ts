@@ -6,11 +6,16 @@ export function membershipGroupAccessSql(userExpr = "u.id", groupExpr = "g.id"):
     WHERE mg_access.id=${groupExpr} AND mg_access.published=1
     AND EXISTS(SELECT 1 FROM users mu_access WHERE mu_access.id=${userExpr} AND mu_access.role='student' AND mu_access.email_verified_at IS NOT NULL)
     AND (
+      EXISTS(SELECT 1 FROM free_membership_members fm_access
+        JOIN free_membership_groups fg_access ON fg_access.group_id=mg_access.id
+        WHERE fm_access.user_id=${userExpr})
+      OR
       EXISTS(SELECT 1 FROM membership_assignments ma_access
         WHERE ma_access.group_id=mg_access.id AND ma_access.user_id=${userExpr}
         AND (ma_access.expires_at IS NULL OR julianday(ma_access.expires_at)>julianday('now')))
       OR EXISTS(SELECT 1 FROM membership_subscriptions ms_access
-        WHERE ms_access.group_id=mg_access.id AND ms_access.user_id=${userExpr}
+        WHERE (EXISTS(SELECT 1 FROM membership_attempt_groups mag_access WHERE mag_access.attempt_id=ms_access.attempt_id AND mag_access.group_id=mg_access.id)
+          OR (ms_access.group_id=mg_access.id AND NOT EXISTS(SELECT 1 FROM membership_attempt_groups mag_legacy WHERE mag_legacy.attempt_id=ms_access.attempt_id))) AND ms_access.user_id=${userExpr}
         AND ms_access.status IN ('active','past_due') AND ms_access.blocked=0
         AND julianday(ms_access.paid_until)>julianday('now'))
       OR ${coursePurchaseGroupAccessSql(userExpr, "mg_access.id")}

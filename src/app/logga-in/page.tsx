@@ -94,7 +94,7 @@ export default async function LoginPage({
         <p className="small muted">
           Behöver du hjälp med ditt konto?{" "}
           <Link href="/kontakt" className="inline-link">
-            Kontakta Tibb.nu
+            Kontakta Slowlax
           </Link>
         </p>
       </div>
