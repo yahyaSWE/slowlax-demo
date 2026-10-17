@@ -30,7 +30,6 @@ export function SiteChrome({ children, siteName, contactEmail, user, legalName, 
   const active = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
   return <div className={`public-site${DEMO_MODE ? " demo-presentation" : ""}`}>
     <a className="skip-link" href="#main-content">Hoppa till innehållet</a>
-    {DEMO_MODE && <div className="demo-version-notice"><span className="demo-version-label">Visningsversion</span><span>Exempel på utbud och priser. Inloggning, köp och anmälan är avstängda.</span></div>}
     <header className="site-header" onKeyDown={event => { if (event.key === "Escape" && open) { setOpen(false); menuButton.current?.focus(); } }}>
       <div className="header-inner">
         <Link href="/" className="brand slowlax-brand" aria-label={`${siteName}, startsida`} onNavigate={() => setOpen(false)}><img src="/images/slowlax-logo-white.png" alt={siteName} width="180" height="34" /></Link>
