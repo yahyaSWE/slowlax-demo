@@ -2,6 +2,8 @@ import { randomBytes } from "node:crypto";
 import { queueBookingEmails } from "./email-outbox";
 import { membershipCourseAccessSql } from "./membership-access";
 import { coursePurchaseAccessSql } from "./course-purchase-access";
+import { DEMO_MODE } from "./demo-mode";
+import { DEMO_ARTICLES, DEMO_COURSES, DEMO_LESSON_OUTLINES, DEMO_SETTINGS } from "./demo-data";
 import type {
   Article,
   Booking,
@@ -283,6 +285,7 @@ export async function getBookingByReference(reference: string) {
   return row ? booking(row) : undefined;
 }
 export async function getSettings(): Promise<Settings> {
+  if (DEMO_MODE) return { ...DEMO_SETTINGS };
   const row = (await getDb()
     .prepare("SELECT * FROM settings WHERE id=1")
     .get())!;
@@ -301,6 +304,7 @@ export async function getArticles(
     publishedOnly?: boolean;
   } = {},
 ) {
+  if (DEMO_MODE) return DEMO_ARTICLES.filter(item => !options.publishedOnly || item.published).map(item => ({ ...item }));
   return (
     await getDb()
       .prepare(
@@ -310,6 +314,7 @@ export async function getArticles(
   ).map(article);
 }
 export async function getArticleById(id: number) {
+  if (DEMO_MODE) return DEMO_ARTICLES.find(item => item.id === id);
   const row = await getDb()
     .prepare("SELECT * FROM articles WHERE id=?")
     .get(id);
@@ -321,6 +326,7 @@ export async function getArticle(
     publishedOnly?: boolean;
   } = {},
 ) {
+  if (DEMO_MODE) return DEMO_ARTICLES.find(item => item.slug === slug && (!options.publishedOnly || item.published));
   const row = await getDb()
     .prepare(
       `SELECT * FROM articles WHERE slug=? ${options.publishedOnly ? "AND published=1" : ""}`,
@@ -333,6 +339,7 @@ export async function getCourses(
     publishedOnly?: boolean;
   } = {},
 ) {
+  if (DEMO_MODE) return DEMO_COURSES.filter(item => !options.publishedOnly || item.published).map(item => ({ ...item }));
   return (
     await getDb()
       .prepare(
@@ -415,6 +422,7 @@ export async function getCourse(
     publishedOnly?: boolean;
   } = {},
 ) {
+  if (DEMO_MODE) return DEMO_COURSES.find(item => item.slug === slug && (!options.publishedOnly || item.published));
   const row = await getDb()
     .prepare(
       `SELECT * FROM courses WHERE slug=? AND NOT EXISTS(SELECT 1 FROM course_bundles b WHERE b.course_id=courses.id) ${options.publishedOnly ? "AND published=1" : ""}`,
@@ -423,6 +431,7 @@ export async function getCourse(
   return row ? course(row) : undefined;
 }
 export async function getCourseById(id: number) {
+  if (DEMO_MODE) return DEMO_COURSES.find(item => item.id === id);
   const row = await getDb().prepare("SELECT * FROM courses WHERE id=?").get(id);
   return row ? course(row) : undefined;
 }
@@ -445,6 +454,7 @@ export type LessonOutline = Pick<
 export async function getLessonOutline(
   courseId: number,
 ): Promise<LessonOutline[]> {
+  if (DEMO_MODE) return (DEMO_LESSON_OUTLINES[courseId] ?? []).map(item => ({ ...item }));
   return (
     await getDb()
       .prepare(

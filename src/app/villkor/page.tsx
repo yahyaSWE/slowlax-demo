@@ -3,6 +3,7 @@ import { getSiteSettings } from "@/lib/site-data";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { TextContent } from "@/components/learning/cards";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_MODE } from "@/lib/demo-mode";
 
 export const metadata = createPageMetadata({
   title: "Kurs- och medlemsvillkor", path: "/villkor",
@@ -26,7 +27,7 @@ export default async function TermsPage() {
       <p>Du hittar dina tillgängliga kurser, lektioner, quiz och kursuppgifter i elevportalen. Bekräftade kursköp visas under Mina köp. Kursmaterialet är avsett för utbildning; det utgör inte individuell investeringsrådgivning eller förvaltning av dina pengar.</p>
       <h2>Medlemskap, grupper och abonnemang</h2>
       <p>På medlemskapets sida visas vad som ingår, pris, moms, betalningsintervall och abonnemangsvillkor. Du godkänner villkoren innan du går till betalningen. Ett abonnemang betalas återkommande enligt valt intervall tills det sägs upp enligt erbjudandets villkor.</p>
-      <p>Gruppens publicerade inlägg, kurser och privata filer är tillgängliga för behöriga medlemmar medan åtkomsten gäller. I <Link href="/elevportal/medlemskap">Mina abonnemang</Link> kan du se betalningsstatus och öppna de tillgängliga valen för betalningar och uppsägning. Kontakta oss om du behöver hjälp.</p>
+      <p>Gruppens publicerade inlägg, kurser och privata filer är tillgängliga för behöriga medlemmar medan åtkomsten gäller. {DEMO_MODE ? "Elevkonton och abonnemang är avstängda i denna visningsversion." : <>I <Link href="/elevportal/medlemskap">Mina abonnemang</Link> kan du se betalningsstatus och öppna de tillgängliga valen för betalningar och uppsägning.</>} Kontakta oss om du behöver hjälp.</p>
       <h2>Ångerrätt och frågor om ett köp</h2>
       <p>När en konsument ingår ett kursavtal på distans kan lagstadgad ångerrätt gälla. Villkoren beror bland annat på hur avtalet ingås och om det gäller en tjänst eller digitalt innehåll. Kontakta oss om du vill ångra ett köp eller har problem med åtkomsten och ange vilken kurs eller vilket medlemskap det gäller.</p>
       <p>Att begära omedelbar kursåtkomst vid köpet eller att öppna en lektion används inte som ett automatiskt avstående från ångerrätt. Läs <a href="https://www.konsumentverket.se/varor-och-tjanster/angra-eller-avboka-en-kurs-eller-utbildning/" target="_blank" rel="noopener noreferrer">Konsumentverkets information om att ångra eller avboka en kurs</a>.</p>

@@ -26,6 +26,7 @@ import { getBusinessSettings, getCourseInformation } from "@/lib/business-settin
 import { getCoursePurchaseOffer, hasPermanentCourseAccess } from "@/lib/course-sales";
 import { CoursePurchaseButton } from "@/components/learning/course-purchase-controls";
 import { accountAuthHref } from "@/lib/account-return";
+import { DEMO_MODE } from "@/lib/demo-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -136,7 +137,7 @@ export default async function CoursePage({
               </p>
             )}
           </div>
-          {offer && (
+          {!DEMO_MODE && offer && (
             <section className="course-information-section prose">
               <h2>Köpvillkor för kursen</h2>
               {business.legalName && <p>Kursen säljs av {business.legalName}{business.organizationNumber ? `, organisationsnummer ${business.organizationNumber}` : ""}.</p>}
@@ -151,6 +152,7 @@ export default async function CoursePage({
           </div>
           <p className="eyebrow">En investering i din kunskap</p>
           <p className="course-price">{formatPrice(course.priceOre)}</p>
+          {DEMO_MODE && <p className="small muted">Exempelpris i visningsversionen · inklusive moms</p>}
           {offer && <p className="small muted">Engångsbetalning · inklusive {offer.vatPercent}% moms</p>}
           <ul className="check-list">
             <li>
@@ -165,6 +167,11 @@ export default async function CoursePage({
             </li>
             {offer?.groups.map(group => <li key={group.id}><Check size={16} /> Gruppen {group.name} ingår{group.accessDays === null ? " utan tidsgräns" : ` i ${group.accessDays} dagar efter betalningen`}.</li>)}
           </ul>
+          {DEMO_MODE ? <div className="stack">
+            <div className="demo-offer-note"><p><strong>Utforska kursen i lugn och ro.</strong></p><p>Du ser ett exempel på kursens presentation och upplägg. Inloggning, köp och lektionsåtkomst är avstängda i denna visningsversion.</p></div>
+            <button className="button button-primary full-width" type="button" disabled>Kursköp är avstängt i demon</button>
+            <Link href="/paket" className="text-link">Utforska våra kurspaket <ArrowRight size={17} /></Link>
+          </div> : <>
           {hasAccess && (
             <Link
               className="button button-primary full-width"
@@ -203,6 +210,7 @@ export default async function CoursePage({
               </Link>
             </p>
           )}
+          </>}
           <p className="small muted"><Link href="/villkor" className="inline-link">Kurs- och medlemsvillkor</Link></p>
         </aside>
       </div>

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { DEMO_MODE } from "./src/lib/demo-mode";
 
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
@@ -14,6 +15,7 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
+          ...(DEMO_MODE ? [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }] : []),
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {

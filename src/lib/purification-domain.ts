@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+import { DEMO_MODE } from "./demo-mode";
+import { demoPurificationQuota } from "./demo-offers";
 import { z } from "zod";
 import { assertAdmin } from "./admin";
 import { getDb, transaction } from "./database";
@@ -36,6 +38,7 @@ async function requireSource(type:PurificationQuotaSource,id:number){
   if(!await getDb().prepare(sql).get(id)) fail("Erbjudandet finns inte längre. Ladda om sidan.");
 }
 export async function getPurificationQuotaSettings(sourceType:PurificationQuotaSource,sourceId:number):Promise<PurificationQuotaSettings>{
+  if (DEMO_MODE) return demoPurificationQuota(sourceType,sourceId);
   quotaSource.parse(sourceType);positiveId.parse(sourceId);await requireSource(sourceType,sourceId);
   const row=await getDb().prepare("SELECT credits,updated_at FROM purification_quota_settings WHERE source_type=? AND source_id=?").get(sourceType,sourceId);
   return {sourceType,sourceId,credits:Number(row?.credits??0),updatedAt:row?String(row.updated_at):null};

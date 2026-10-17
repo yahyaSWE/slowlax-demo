@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createPageMetadata } from "@/lib/seo";
+import { DEMO_MODE } from "@/lib/demo-mode";
 import "./questions.css";
 
 export const metadata = createPageMetadata({
@@ -29,7 +30,7 @@ export default function QuestionsPage() {
           <p>Kommande utbildningar annonseras i våra kanaler. Följ oss i sociala medier eller <Link href="/kontakt#nyhetsbrev">anmäl dig till nyhetsbrevet</Link> för uppdateringar. Våra äldre <Link href="/artiklar">nyheter och utbildningsartiklar</Link> visar tidigare aktiviteter.</p>
         </details>
         <details><summary>Hur får jag tillgång till en kurs?</summary>
-          <p>Börja med <Link href="/kurser">kursbeskrivningen</Link>. Skapa ett <Link href="/registrera">elevkonto</Link> och verifiera din e-postadress. Om kursköp är tillgängligt på kurssidan får du åtkomst efter bekräftad betalning. Administratören kan också tilldela en kurs efter överenskommelse. Dina tillgängliga kurser samlas i <Link href="/elevportal">elevportalen</Link>.</p>
+          {DEMO_MODE ? <p>Du kan utforska <Link href="/kurser">kursernas presentationer</Link>, exempel på innehåll och lektionsupplägg. Inloggning och tillgång till kursmaterial ingår inte i visningsversionen.</p> : <p>Börja med <Link href="/kurser">kursbeskrivningen</Link>. Skapa ett <Link href="/registrera">elevkonto</Link> och verifiera din e-postadress. Om kursköp är tillgängligt på kurssidan får du åtkomst efter bekräftad betalning. Administratören kan också tilldela en kurs efter överenskommelse. Dina tillgängliga kurser samlas i <Link href="/elevportal">elevportalen</Link>.</p>}
         </details>
         <details><summary>Hur fungerar lektioner, quiz och kursuppgifter?</summary>
           <p>När du har kursåtkomst kan du öppna publicerade lektioner, se kursmaterial och följa dina framsteg. Om läraren har lagt till quiz eller skrivuppgifter hittar du dem i lektionen. Där framgår också eventuella krav för att genomföra kursen.</p>
@@ -38,7 +39,7 @@ export default function QuestionsPage() {
           <p>Innehåll, pris och betalningsintervall framgår av respektive <Link href="/medlemskap">medlemskap</Link>. Ett medlemskap kan ge tillgång till gruppens kurser, inlägg och privata material. I elevportalen ser du de grupper och abonnemang som hör till ditt konto.</p>
         </details>
         <details><summary>Hur hanterar jag mitt abonnemang?</summary>
-          <p>Logga in och öppna <Link href="/elevportal/medlemskap">Mina abonnemang</Link> för betalningsstatus och tillgängliga val för betalningar och uppsägning. Kontakta oss om du behöver hjälp. Villkoren för det valda medlemskapet visas innan du tecknar det.</p>
+          {DEMO_MODE ? <p>Abonnemang kan inte tecknas eller hanteras i visningsversionen. <Link href="/medlemskap">Medlemskapssidan</Link> visar exempel på hur erbjudandena kan presenteras.</p> : <p>Logga in och öppna <Link href="/elevportal/medlemskap">Mina abonnemang</Link> för betalningsstatus och tillgängliga val för betalningar och uppsägning. Kontakta oss om du behöver hjälp. Villkoren för det valda medlemskapet visas innan du tecknar det.</p>}
         </details>
         <details><summary>Vad betyder rening av en portfölj?</summary>
           <p>Rening handlar om att identifiera den del av ett bolags inkomster som kommer från källor som inte är tillåtna enligt de islamiska kriterier man följer. Läs om hur granskning och sammanställning går till på sidan <Link href="/rening">Rening av investeringar</Link>.</p>

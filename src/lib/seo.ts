@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { databaseConfigured } from "./database-config";
+import { DEMO_MODE } from "./demo-mode";
 
 export const SITE_NAME = "Slowlax";
 const FALLBACK_URL = "https://slowlax.se";
@@ -27,6 +28,7 @@ function publicOrigin(value: string | undefined): URL | undefined {
 // SITE_URL is independent of APP_URL, which is also used by payment callbacks.
 // Never use VERCEL_URL: a preview deployment must not become a canonical URL.
 export function getSiteUrl(): URL {
+  if (DEMO_MODE) return new URL("https://slowlax-demo.vercel.app");
   const preview = process.env.VERCEL_ENV === "preview" || process.env.VERCEL_ENV === "development";
   return publicOrigin(process.env.SITE_URL) ||
     (!preview ? publicOrigin(process.env.APP_URL) : undefined) ||
@@ -43,6 +45,7 @@ export function absoluteUrl(path: string): string {
 }
 
 export function isIndexableDeployment(): boolean {
+  if (DEMO_MODE) return false;
   if (!databaseConfigured() || process.env.NODE_ENV !== "production") return false;
   if (process.env.VERCEL_ENV) return process.env.VERCEL_ENV === "production";
   if (process.env.VERCEL) return false;

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DEMO_MODE } from "@/lib/demo-mode";
 import { getSiteSettings } from "@/lib/site-data";
 import { getBusinessSettings } from "@/lib/business-settings";
 import { TextContent } from "@/components/learning/cards";
@@ -15,6 +16,7 @@ export default async function PrivacyPage() {
     <section className="section container narrow prose">
       <span className="eyebrow">INTEGRITET</span>
       <h1>Integritet och personuppgifter</h1>
+      {DEMO_MODE && <p className="notice">Det här är en visningsversion med statiskt exempelinnehåll. Inga konton kan skapas och inga kursköp, reningsärenden eller nyhetsbrevsanmälningar kan skickas in. Informationen nedan beskriver den fullständiga tjänsten.</p>}
       <h2>Kontakt om dina uppgifter</h2>
       {business.legalName && <p>{business.legalName}{business.organizationNumber ? `, organisationsnummer ${business.organizationNumber}` : ""}, ansvarar för personuppgifterna på Slowlax.</p>}
       <p>Har du frågor om dina personuppgifter eller vill använda dina rättigheter kan du kontakta Slowlax{settings.email ? <> på <a href={`mailto:${settings.email}`}>{settings.email}</a></> : <> via <Link href="/kontakt">kontaktsidan</Link></>}.</p>

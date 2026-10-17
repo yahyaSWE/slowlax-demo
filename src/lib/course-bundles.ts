@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { DEMO_MODE } from "./demo-mode";
+import { DEMO_BUNDLES } from "./demo-offers";
 import { assertAdmin } from "./admin";
 import { DomainError, getDb, transaction } from "./db";
 import { slug, text } from "./validation";
@@ -16,6 +18,7 @@ function course(row: Record<string, unknown>): Course {
     priceOre: Number(row.price_ore), published: !!row.published, createdAt: String(row.created_at), updatedAt: String(row.updated_at) };
 }
 export async function getCourseBundles(options: { publishedOnly?: boolean; actorId?: number } = {}): Promise<CourseBundle[]> {
+  if (DEMO_MODE && options.publishedOnly) return DEMO_BUNDLES;
   if (!options.publishedOnly) {
     if (!options.actorId) throw new DomainError("Du har inte tillgång till administrationen.");
     await assertAdmin(options.actorId);

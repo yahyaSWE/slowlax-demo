@@ -2,6 +2,7 @@ import { ArrowDown, BookOpen, CirclePlay, ChartNoAxesCombined } from "lucide-rea
 import { getCourses } from "@/lib/db";
 import { createPageMetadata } from "@/lib/seo";
 import { CourseCard } from "@/components/learning/cards";
+import { DEMO_MODE } from "@/lib/demo-mode";
 
 export const metadata = createPageMetadata({
   title: "Kurser i etiska och halalinvesteringar",
@@ -97,8 +98,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           </div>
         )}
         <p className="catalog-note">
-          Kurser med onlineköp kan köpas direkt på kurssidan. För övriga kurser
-          kontaktar du oss för anmälan och tilldelning av kursåtkomst.
+          {DEMO_MODE ? "Utforska kursinnehåll och exempel på priser. Anmälan och kursköp är avstängda i visningsversionen." : "Kurser med onlineköp kan köpas direkt på kurssidan. För övriga kurser kontaktar du oss för anmälan och tilldelning av kursåtkomst."}
         </p>
       </section>
     </>

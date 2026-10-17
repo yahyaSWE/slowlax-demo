@@ -1,5 +1,5 @@
 {
-  "name": "slowlax",
+  "name": "slowlax-demo",
   "version": "0.1.0",
   "private": true,
   "engines": {
@@ -10,11 +10,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
-    "setup": "tsx scripts/setup.ts",
-    "db:init": "tsx scripts/db-init.ts",
-    "supabase:check": "tsx scripts/supabase-check.ts",
-    "supabase:import": "tsx scripts/supabase-import.ts"
+    "test": "tsx --test tests/demo-*.test.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

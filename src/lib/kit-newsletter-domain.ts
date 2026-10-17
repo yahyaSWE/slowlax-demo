@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { DomainError, getDb, getUser, transaction } from "./db";
 import type { KitNewsletterSettings } from "./kit-newsletter-types";
+import { DEMO_MODE } from "./demo-mode";
 
 const kitId = z.string().trim().regex(/^[1-9]\d{0,14}$/, "Ange ett numeriskt ID från Kit.");
 const settingsSchema = z.object({
@@ -21,6 +22,7 @@ export async function assertKitNewsletterAdmin(actorId: number) {
 // Only these non-secret settings can be sent to a Client Component. The API
 // key is read solely by kit-api.ts at request time and is never persisted.
 export async function getKitNewsletterSettings(): Promise<KitNewsletterSettings> {
+  if (DEMO_MODE) return { ...DEFAULT_SETTINGS, formId: "", enabled: false };
   const row = await getDb().prepare("SELECT enabled,form_id,tag_id,double_opt_in_confirmed FROM kit_newsletter_settings WHERE id=1").get();
   if (!row) return { ...DEFAULT_SETTINGS };
   const parsed = settingsSchema.safeParse({

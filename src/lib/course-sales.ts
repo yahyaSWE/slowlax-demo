@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { DEMO_MODE } from "./demo-mode";
+import { demoCourseSalesDetails } from "./demo-offers";
 import { assertAdmin } from "./admin";
 import { DomainError, getDb, transaction } from "./db";
 import { appUrl, stripeReady } from "./stripe";
@@ -102,6 +104,7 @@ export async function saveCourseSalesSettings(
 
 /** Publication and sales gates apply only to new purchases, never existing grants. */
 export async function getPublicCourseSalesSettings(courseId: number): Promise<CourseSalesSettings | undefined> {
+  if (DEMO_MODE) return demoCourseSalesDetails(courseId);
   positiveId.parse(courseId);
   const row = await getDb().prepare(`SELECT s.* FROM course_sales_settings s JOIN courses c ON c.id=s.course_id
     WHERE s.course_id=? AND s.enabled=1 AND c.published=1 AND c.price_ore>0 AND length(trim(s.terms))>0
@@ -116,6 +119,7 @@ export async function getPublicCourseSalesSettings(courseId: number): Promise<Co
 export async function getPublicCourseSalesDetails(courseId: number): Promise<(CourseSalesSettings & {
   groups: { id: number; name: string; accessDays: number | null }[];
 }) | undefined> {
+  if (DEMO_MODE) return demoCourseSalesDetails(courseId);
   const settings = await getPublicCourseSalesSettings(courseId);
   if (!settings) return undefined;
   return { ...settings, groups: (await salesGroups(courseId, settings.groupId))
@@ -133,6 +137,7 @@ export type CoursePurchaseOffer = {
   buyEnabled: true;
 };
 export async function getCoursePurchaseOffer(courseId: number): Promise<CoursePurchaseOffer | undefined> {
+  if (DEMO_MODE) return undefined;
   positiveId.parse(courseId);
   if (!stripeReady()) return undefined;
   try { appUrl(); } catch { return undefined; }

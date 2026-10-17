@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { DEMO_MODE } from "./demo-mode";
+import { DEMO_FREE_MEMBERSHIP } from "./demo-offers";
 import { assertAdmin } from "./admin";
 import { getDb, transaction } from "./database";
 import { DomainError } from "./db";
@@ -28,6 +30,7 @@ async function settingsSnapshot(): Promise<FreeMembershipSettings> {
 }
 /** Public Bas information never includes enrollment records or private groups. */
 export async function getPublicFreeMembership(): Promise<FreeMembershipOffer> {
+  if (DEMO_MODE) return DEMO_FREE_MEMBERSHIP;
   const row=await getDb().prepare("SELECT description,updated_at FROM free_membership_settings WHERE id=1").get();
   if(!row) throw new DomainError("Bas-medlemskapet är inte tillgängligt just nu.");
   const groups=(await getDb().prepare(`SELECT g.id,g.name FROM free_membership_groups fg

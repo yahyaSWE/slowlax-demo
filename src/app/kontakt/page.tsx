@@ -5,6 +5,7 @@ import { getBusinessSettings } from "@/lib/business-settings";
 import { getKitNewsletterSettings } from "@/lib/kit-newsletter-domain";
 import { JsonLd } from "@/components/seo/json-ld";
 import { absoluteUrl, buildOrganizationSchema, createPageMetadata, organizationId, websiteId } from "@/lib/seo";
+import { DEMO_MODE } from "@/lib/demo-mode";
 
 export const metadata = createPageMetadata({
   title: "Kontakta Slowlax", path: "/kontakt",
@@ -39,11 +40,11 @@ export default async function ContactPage() {
         <h2>Kunskap direkt till din inkorg</h2>
         <p>Prenumerera på vårt nyhetsbrev för uppdateringar, utbildningar och innehåll om etiska och halalinvesteringar.</p>
         <label htmlFor="newsletter-email">Din e-postadress</label>
-        <form action={`https://app.kit.com/forms/${newsletter.formId}/subscriptions`} method="post">
+        {DEMO_MODE ? <div className="stack"><input id="newsletter-email" type="email" placeholder="namn@exempel.se" disabled /><button className="button button-primary" disabled>Nyhetsbrev – förhandsvisning</button></div> : <form action={`https://app.kit.com/forms/${newsletter.formId}/subscriptions`} method="post">
           <input id="newsletter-email" name="email_address" type="email" autoComplete="email" placeholder="namn@exempel.se" required />
           <button className="button button-primary" type="submit">Ja, skicka mig tips!</button>
-        </form>
-        <p className="small muted">Anmälan hanteras av Kit. När du skickar formuläret lämnar du sidan och din e-postadress skickas till Kit för Slowlax nyhetsbrev. Följ instruktionerna i bekräftelsemeddelandet. Du kan avsluta prenumerationen via länken i utskicken. <Link href="/integritet">Läs om personuppgifter</Link>.</p>
+        </form>}
+        <p className="small muted">{DEMO_MODE ? "Anmälan är avstängd i visningsversionen. Inga uppgifter skickas eller sparas." : "Anmälan hanteras av Kit. När du skickar formuläret lämnar du sidan och din e-postadress skickas till Kit för Slowlax nyhetsbrev. Följ instruktionerna i bekräftelsemeddelandet. Du kan avsluta prenumerationen via länken i utskicken."} <Link href="/integritet">Läs om personuppgifter</Link>.</p>
       </div>
       <div className="prose">
         <h2>Följ vår gemenskap</h2>

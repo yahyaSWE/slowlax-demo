@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { DEMO_MODE } from "./demo-mode";
+import { DEMO_GROUPS, DEMO_MEMBERSHIP_PLANS, DEMO_MEMBERSHIP_SETTINGS } from "./demo-offers";
+import { DEMO_COURSES } from "./demo-data";
 import { assertAdmin } from "./admin";
 import { DomainError, getDb, getSettings, transaction } from "./db";
 import { membershipGroupAccessSql } from "./membership-access";
@@ -54,6 +57,7 @@ async function plansFromRows(rows: Row[]): Promise<MembershipPlan[]> {
   }));
 }
 export async function getMembershipPlanGroups(planId: number, legacyGroupId?: number): Promise<{ id: number; name: string }[]> {
+  if (DEMO_MODE) return planId === 201 ? DEMO_GROUPS : [];
   const rows = await getDb().prepare(`SELECT g.id,g.name FROM membership_plan_groups pg JOIN membership_groups g ON g.id=pg.group_id WHERE pg.plan_id=? ORDER BY g.id`).all(planId);
   if (!rows.length) {
     const legacy = await getDb().prepare(`SELECT g.id,g.name FROM membership_plans p JOIN membership_groups g ON g.id=p.group_id WHERE p.id=?`).get(planId);
@@ -117,6 +121,7 @@ const viableGroup = `g.published=1 AND NOT EXISTS(SELECT 1 FROM membership_group
 const viablePlanGroups = `NOT EXISTS(SELECT 1 FROM membership_plan_groups vpg JOIN membership_groups vg ON vg.id=vpg.group_id
   WHERE vpg.plan_id=p.id AND (vg.published<>1 OR EXISTS(SELECT 1 FROM membership_group_courses vgc JOIN courses vc ON vc.id=vgc.course_id WHERE vgc.group_id=vg.id AND vc.published<>1)))`;
 export async function getPublicPlans(): Promise<MembershipPlan[]> {
+  if (DEMO_MODE) return DEMO_MEMBERSHIP_PLANS;
   return plansFromRows(await getDb().prepare(`SELECT p.*,g.name AS group_name FROM membership_plans p
     JOIN membership_groups g ON g.id=p.group_id
     WHERE p.published=1 AND ${viableGroup} AND ${viablePlanGroups} ORDER BY p.price_ore,p.id`).all());
@@ -125,6 +130,7 @@ export async function getPublicPlan(slugValue: string): Promise<MembershipPlan |
   return (await getPublicPlans()).find(p => p.slug === slugValue);
 }
 export async function getPublicPlanCourses(planId: number): Promise<Course[]> {
+  if (DEMO_MODE) return planId === 201 ? DEMO_COURSES : [];
   positiveId.parse(planId);
   return (await getDb().prepare(`SELECT DISTINCT c.* FROM membership_plans p
     JOIN membership_groups g ON g.id=p.group_id
@@ -187,6 +193,7 @@ async function savePlanGroups(planId: number, groupIds: number[]) {
   for (const groupId of groupIds) await getDb().prepare("INSERT INTO membership_plan_groups(plan_id,group_id) VALUES(?,?)").run(planId, groupId);
 }
 export async function getMembershipSettings(): Promise<MembershipSettings> {
+  if (DEMO_MODE) return DEMO_MEMBERSHIP_SETTINGS;
   const row = (await getDb().prepare("SELECT * FROM membership_settings WHERE id=1").get())!;
   return { salesEnabled: !!row.sales_enabled, terms: String(row.terms), updatedAt: String(row.updated_at) };
 }

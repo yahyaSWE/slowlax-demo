@@ -7,6 +7,7 @@ import { DEFAULT_BUSINESS_SETTINGS } from "@/lib/business-config";
 import { getCurrentUser } from "@/lib/auth";
 import { databaseConfigured } from "@/lib/database-config";
 import { createPageMetadata, getSiteUrl } from "@/lib/seo";
+import { DEMO_MODE } from "@/lib/demo-mode";
 import "./globals.css";
 import "@/components/learning/learning.css";
 import "./public-theme.css";
@@ -52,7 +53,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const needsDatabase = !!process.env.VERCEL && !databaseConfigured();
+  const needsDatabase = !DEMO_MODE && !!process.env.VERCEL && !databaseConfigured();
   const [settings, user, business] = needsDatabase
     ? [{ siteName: "Slowlax", email: "info@slowlax.se" }, null, DEFAULT_BUSINESS_SETTINGS]
     : await Promise.all([getSiteSettings(), getCurrentUser(), getBusinessSettings()]);

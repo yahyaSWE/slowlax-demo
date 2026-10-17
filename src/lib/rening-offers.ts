@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { DEMO_MODE } from "./demo-mode";
+import { DEMO_RENING_OFFERS, DEMO_RENING_SETTINGS } from "./demo-offers";
 import { assertAdmin } from "./admin";
 import { getDb,transaction } from "./database";
 import { DomainError } from "./db";
@@ -6,9 +8,9 @@ import { appUrl } from "./stripe";
 export type ReningOffer={id:number;title:string;credits:number;priceOre:number;vatPercent:0|6|12|25;published:boolean;updatedAt:string};
 export type ReningSettings={salesEnabled:boolean;terms:string;updatedAt:string};
 const map=(r:Record<string,unknown>):ReningOffer=>({id:Number(r.id),title:String(r.title),credits:Number(r.credits),priceOre:Number(r.price_ore),vatPercent:Number(r.vat_percent) as ReningOffer['vatPercent'],published:!!r.published,updatedAt:String(r.updated_at)});
-export function reningBillingReady(){try{return !!process.env.STRIPE_SECRET_KEY&&!!process.env.RENING_STRIPE_WEBHOOK_SECRET&&!!appUrl();}catch{return false;}}
-export async function getReningSettings():Promise<ReningSettings>{const r=(await getDb().prepare('SELECT * FROM rening_settings WHERE id=1').get())!;return {salesEnabled:!!r.sales_enabled,terms:String(r.terms),updatedAt:String(r.updated_at)};}
-export async function getPublicReningOffers(){return (await getDb().prepare('SELECT * FROM rening_offers WHERE published=1 ORDER BY credits,id').all()).map(map);}
+export function reningBillingReady(){if(DEMO_MODE)return false;try{return !!process.env.STRIPE_SECRET_KEY&&!!process.env.RENING_STRIPE_WEBHOOK_SECRET&&!!appUrl();}catch{return false;}}
+export async function getReningSettings():Promise<ReningSettings>{if(DEMO_MODE)return DEMO_RENING_SETTINGS;const r=(await getDb().prepare('SELECT * FROM rening_settings WHERE id=1').get())!;return {salesEnabled:!!r.sales_enabled,terms:String(r.terms),updatedAt:String(r.updated_at)};}
+export async function getPublicReningOffers(){if(DEMO_MODE)return DEMO_RENING_OFFERS;return (await getDb().prepare('SELECT * FROM rening_offers WHERE published=1 ORDER BY credits,id').all()).map(map);}
 export async function getAdminReningOffers(actorId:number){await assertAdmin(actorId);return (await getDb().prepare('SELECT * FROM rening_offers ORDER BY credits,id').all()).map(map);}
 export async function getReningOffer(id:number){const r=await getDb().prepare('SELECT * FROM rening_offers WHERE id=?').get(id);return r?map(r):null;}
 export async function saveReningOffer(actorId:number,id:number|undefined,input:{title:string;credits:number;priceOre:number;vatPercent:number;published:boolean;expectedUpdatedAt:string|null}){

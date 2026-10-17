@@ -33,6 +33,7 @@ import { PURIFICATION_SCHEMA } from "./purification-schema";
 import { PURIFICATION_BILLING_SCHEMA } from "./purification-billing-schema";
 import { FREE_MEMBERSHIP_SCHEMA } from "./free-membership-schema";
 import slowlaxArticles from "./slowlax-articles.json";
+import { DEMO_MODE } from "./demo-mode";
 export { databaseConfigured } from "./database-config";
 
 export class DatabaseConfigurationError extends Error {
@@ -397,6 +398,7 @@ export class DatabaseAdapter {
 let database: DatabaseAdapter | PostgresDatabaseAdapter | undefined;
 let selectedProvider: ReturnType<typeof databaseProvider> | undefined;
 export function getDb(): DatabaseAdapter | PostgresDatabaseAdapter {
+  if (DEMO_MODE) throw new Error("The presentation demo has no database access.");
   if (!databaseConfigured()) throw new DatabaseConfigurationError();
   const provider = databaseProvider();
   // Next dev can reload environment variables without replacing this module.

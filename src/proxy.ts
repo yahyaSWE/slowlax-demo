@@ -2,8 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { databaseConfigured } from "@/lib/database-config";
 import { supabaseAuthRequested, supabaseAuthConfigurationStatus } from "@/lib/supabase-auth-config";
 import { refreshSupabaseSession } from "@/lib/supabase-proxy";
+import { DEMO_MODE, demoPublicPath } from "@/lib/demo-mode";
 
 export async function proxy(request: NextRequest) {
+  if (DEMO_MODE) {
+    const headers = { "X-Robots-Tag": "noindex, nofollow, noarchive" };
+    if (!["GET", "HEAD"].includes(request.method))
+      return new NextResponse(null, { status: 405, headers: { ...headers, Allow: "GET, HEAD" } });
+    if (!demoPublicPath(request.nextUrl.pathname))
+      return new NextResponse(null, { status: 404, headers });
+    const response = NextResponse.next();
+    response.headers.set("X-Robots-Tag", headers["X-Robots-Tag"]);
+    return response;
+  }
   const needsDatabase = !!process.env.VERCEL && !databaseConfigured();
   const path = request.nextUrl.pathname;
   // Removed features stay unavailable during installation as well as normal use.

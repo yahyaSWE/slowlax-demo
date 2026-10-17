@@ -4,6 +4,7 @@ import { getDb, getSessionUser, transaction, type User } from "./db";
 import { randomToken, tokenHash } from "./security";
 import { cache } from "react";
 import { requireSupabaseAuthConfiguration, supabaseAuthRequested } from "./supabase-auth-config";
+import { DEMO_MODE } from "./demo-mode";
 const COOKIE = "tibb_session";
 // Share this lookup within one server render, never between visitors or requests.
 // Read the cookie each time so login/logout use the new session immediately.
@@ -13,6 +14,7 @@ const supabaseUserForRender = cache(async () => {
   return currentSupabaseUser();
 });
 export async function getCurrentUser(): Promise<User | null> {
+  if (DEMO_MODE) return null;
   if (supabaseAuthRequested()) {
     requireSupabaseAuthConfiguration();
     return supabaseUserForRender();
